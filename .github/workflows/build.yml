@@ -77,10 +77,7 @@ jobs:
             echo "Run: ${RUN_URL}"
             echo ""
             echo '```'
-            grep -n -i -E "error|failed|exception|caused by|what went wrong|> Task" /tmp/build.log | tail -n 400 || true
-            echo ""
-            echo "----- tail -----"
-            tail -n 200 /tmp/build.log || true
+            head -n 260 /tmp/build.log || true
             echo '```'
           } > /tmp/issue.md
           TITLE="Build failed: $(date -u +%Y-%m-%dT%H:%MZ) ${SHA:0:7}"
