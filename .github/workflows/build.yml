@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -26,11 +27,61 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build mod jar
-        run: ./gradlew build --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew build --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
 
       - name: Upload mod jar as workflow artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: dron-mod
           path: build/libs/dron-*.jar
           if-no-files-found: error
+
+      - name: Publish jar to GitHub Release
+        if: success() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT="${SHA:0:7}"
+          JAR="$(ls build/libs/dron-*.jar | grep -v sources | head -n1)"
+          echo "Publishing $JAR"
+          gh release create "build-${SHORT}" "$JAR" \
+            --repo "$REPO" \
+            --target "$SHA" \
+            --title "Dron 1.20.1 — build ${SHORT}" \
+            --notes "Автосборка мода **Dron** (боевой FPV-дрон, Minecraft 1.20.1, Fabric).
+
+          **Файлы:** $(basename "$JAR")
+          **Коммит:** $SHA
+
+          Установка: Fabric Loader 1.20.1 + Fabric API, положить jar в папку \`mods\`." \
+            || true
+
+      - name: Report build failure as issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Build failed for commit \`${SHA}\`."
+            echo ""
+            echo "Run: ${RUN_URL}"
+            echo ""
+            echo '```'
+            grep -n -i -E "error|failed|exception|caused by|what went wrong|> Task" /tmp/build.log | tail -n 400 || true
+            echo ""
+            echo "----- tail -----"
+            tail -n 200 /tmp/build.log || true
+            echo '```'
+          } > /tmp/issue.md
+          TITLE="Build failed: $(date -u +%Y-%m-%dT%H:%MZ) ${SHA:0:7}"
+          gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/issue.md
