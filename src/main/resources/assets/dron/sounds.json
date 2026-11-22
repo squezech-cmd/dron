@@ -1,0 +1,34 @@
+{
+	"drone_loop": {
+		"category": "neutral",
+		"subtitle": "subtitles.dron.drone_loop",
+		"sounds": [
+			{ "name": "dron:drone_loop", "stream": false }
+		]
+	},
+	"drone_buzz": {
+		"category": "neutral",
+		"subtitle": "subtitles.dron.drone_buzz",
+		"sounds": [ "dron:drone_buzz" ]
+	},
+	"drone_explode": {
+		"category": "neutral",
+		"subtitle": "subtitles.dron.drone_explode",
+		"sounds": [ "dron:drone_explode" ]
+	},
+	"drone_launch": {
+		"category": "player",
+		"subtitle": "subtitles.dron.drone_launch",
+		"sounds": [ "dron:drone_launch" ]
+	},
+	"drone_beep": {
+		"category": "player",
+		"subtitle": "subtitles.dron.drone_beep",
+		"sounds": [ "dron:drone_beep" ]
+	},
+	"drone_static": {
+		"category": "neutral",
+		"subtitle": "subtitles.dron.drone_static",
+		"sounds": [ "dron:drone_static" ]
+	}
+}

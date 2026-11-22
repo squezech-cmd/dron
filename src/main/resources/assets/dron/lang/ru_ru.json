@@ -1,0 +1,17 @@
+{
+	"item.dron.drone_remote": "Пульт боевого дрона",
+	"item.dron.drone_remote.desc": "Управление FPV-дроном. ПКМ — запуск и посадка.",
+	"item.dron.drone_remote.controls": "W/S — тяга, A/D — крен, Пробел/Shift — высота, R — отмена",
+	"itemGroup.dron.dron": "Дрон",
+	"key.categories.dron": "Боевой дрон",
+	"key.dron.recall": "Отменить дрон",
+	"entity.dron.combat_drone": "Боевой дрон",
+	"dron.message.lost": "Дрон потерян",
+	"dron.message.recall": "Дрон отозван",
+	"subtitles.dron.drone_loop": "Дрон жужжит",
+	"subtitles.dron.drone_buzz": "Моторы дрона",
+	"subtitles.dron.drone_explode": "Боевая часть дрона детонирует",
+	"subtitles.dron.drone_launch": "Дрон взлетает",
+	"subtitles.dron.drone_beep": "Пульт пищит",
+	"subtitles.dron.drone_static": "Помехи видеосвязи"
+}
