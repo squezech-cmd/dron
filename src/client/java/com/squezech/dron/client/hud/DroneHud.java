@@ -124,7 +124,7 @@ public final class DroneHud {
 		// --- left: flight data ----------------------------------------------
 		int lx = 14;
 		int ly = cy - 56;
-		gauge(g, font, lx, ly, "СКОРОСТЬ", Math.round(speed * 72.0D) + " км/ч", speed / (float) CombatDroneEntity.MAX_SPEED, GREEN);
+		gauge(g, font, lx, ly, "СКОРОСТЬ", Math.round(speed * 72.0D) + " км/ч", (float) (speed / CombatDroneEntity.MAX_SPEED), GREEN);
 		gauge(g, font, lx, ly + 36, "ВЫСОТА", altitude + " м", Mth.clamp(altitude / 150.0F, 0.0F, 1.0F), GREEN);
 		gauge(g, font, lx, ly + 72, "ДИСТ.", (distance / 40) + " x40 м", Mth.clamp(distance / 260.0F, 0.0F, 1.0F),
 				distance > 200 ? AMBER : GREEN);

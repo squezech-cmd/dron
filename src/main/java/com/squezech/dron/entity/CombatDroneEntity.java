@@ -167,6 +167,11 @@ public class CombatDroneEntity extends Entity {
 		this.fly(pilot);
 	}
 
+	/** Accumulated rotor angle, used by the renderer. */
+	public float getPropellerAngle(float partialTick) {
+		return (this.clientSpin + partialTick * this.entityData.get(DATA_SPIN)) * 1.35F;
+	}
+
 	// ---------------------------------------------------------------- physics
 
 	private void fly(Player pilot) {
