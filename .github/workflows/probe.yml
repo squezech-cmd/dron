@@ -7,4 +7,10 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - run: echo hello-probe-2
+      - run: |
+          mkdir -p out
+          echo "artifact-content-test" > out/test.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-artifact
+          path: out/
