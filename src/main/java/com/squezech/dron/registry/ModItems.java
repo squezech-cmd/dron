@@ -3,6 +3,7 @@ package com.squezech.dron.registry;
 import com.squezech.dron.DronMod;
 import com.squezech.dron.item.DroneRemoteItem;
 
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -22,7 +23,7 @@ public final class ModItems {
 	}
 
 	private static Item register(String name, Item item) {
-		BuiltInRegistries.register(BuiltInRegistries.ITEM, DronMod.id(name), item);
+		Registry.register(BuiltInRegistries.ITEM, DronMod.id(name), item);
 		return item;
 	}
 

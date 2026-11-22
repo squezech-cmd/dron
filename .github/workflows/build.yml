@@ -29,7 +29,20 @@ jobs:
       - name: Build mod jar
         run: |
           set -o pipefail
-          ./gradlew build --stacktrace --no-daemon 2>&1 | tee /tmp/build.log
+          for attempt in 1 2 3; do
+            echo "=== build attempt $attempt ==="
+            if ./gradlew build --stacktrace --no-daemon 2>&1 | tee /tmp/build.log; then
+              exit 0
+            fi
+            # retry only on transient repository throttling
+            if grep -q "status code 429\|Too Many Requests\|Connection reset" /tmp/build.log; then
+              echo "Transient repository error, retrying in 30s..."
+              sleep 30
+            else
+              exit 1
+            fi
+          done
+          exit 1
 
       - name: Upload mod jar as workflow artifact
         if: success()

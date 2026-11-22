@@ -2,6 +2,7 @@ package com.squezech.dron.registry;
 
 import com.squezech.dron.DronMod;
 
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.sounds.SoundEvent;
 
@@ -38,6 +39,6 @@ public final class ModSounds {
 	}
 
 	private static void register(String name, SoundEvent event) {
-		BuiltInRegistries.register(BuiltInRegistries.SOUND_EVENT, DronMod.id(name), event);
+		Registry.register(BuiltInRegistries.SOUND_EVENT, DronMod.id(name), event);
 	}
 }
