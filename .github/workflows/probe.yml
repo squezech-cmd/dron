@@ -1,10 +1,10 @@
 name: probe
 on:
   push:
-    paths-ignore: ['**']
+    branches: [main, 'arena/**']
   workflow_dispatch:
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - run: echo hello-probe
+      - run: echo hello-probe-2
