@@ -102,22 +102,25 @@ public class DroneModel extends EntityModel<CombatDroneEntity> {
 	}
 
 	private static void addRotor(PartDefinition body, String name, float x, float z, int side) {
+		// The arm always runs from the hull out to the motor, on both sides.
+		float armX = side > 0 ? 3.0F : -7.0F;
 		PartDefinition rotor = body.addOrReplaceChild(name,
 				CubeListBuilder.create()
 						// arm
-						.texOffs(42, 0).addBox(side * 3.0F, -0.4F, -0.4F, 4, 1, 1)
+						.texOffs(42, 0).addBox(armX, -0.4F, -0.4F, 4, 1, 1)
 						// motor bell
 						.texOffs(52, 0).addBox(side * 7.0F - 0.75F, -1.0F, -0.75F, 1.5F, 1.5F, 1.5F),
 				PartPose.offset(x, -1.2F, z));
 
+		// Two thin blades plus a small cap: reads as a spinning prop at this size.
 		rotor.addOrReplaceChild("prop",
 				CubeListBuilder.create()
-						// two thin blades
-						.texOffs(44, 8).addBox(-4.5F, -0.15F, -0.4F, 4, 0, 1)
-						.texOffs(44, 8).addBox(0.5F, -0.15F, -0.4F, 4, 0, 1)
-						.texOffs(44, 10).addBox(-0.4F, -0.15F, -4.5F, 1, 0, 4)
-						.texOffs(44, 10).addBox(-0.4F, -0.15F, 0.5F, 1, 0, 4),
-				PartPose.offset(side * 7.25F, -1.35F, 0.0F));
+						.texOffs(44, 8).addBox(-4.6F, -0.1F, -0.35F, 4.3F, 0.12F, 0.7F)
+						.texOffs(44, 8).addBox(0.3F, -0.1F, -0.35F, 4.3F, 0.12F, 0.7F)
+						.texOffs(44, 10).addBox(-0.35F, -0.1F, -4.6F, 0.7F, 0.12F, 4.3F)
+						.texOffs(44, 10).addBox(-0.35F, -0.1F, 0.3F, 0.7F, 0.12F, 4.3F)
+						.texOffs(56, 12).addBox(-0.5F, -0.35F, -0.5F, 1, 0.5F, 1),
+				PartPose.offset(side * 7.0F, -1.35F, 0.0F));
 	}
 
 	@Override

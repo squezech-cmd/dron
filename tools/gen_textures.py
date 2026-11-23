@@ -21,14 +21,14 @@ ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "src/main/resources/assets/dron"
 
 # Palette
-CARBON = (34, 36, 38, 255)
-CARBON_LIGHT = (56, 60, 63, 255)
-CARBON_DARK = (20, 21, 23, 255)
-OLIVE = (86, 92, 53, 255)
-OLIVE_LIGHT = (108, 115, 68, 255)
-OLIVE_DARK = (58, 62, 36, 255)
-METAL = (126, 130, 134, 255)
-METAL_DARK = (78, 82, 86, 255)
+CARBON = (46, 49, 53, 255)
+CARBON_LIGHT = (66, 71, 76, 255)
+CARBON_DARK = (28, 30, 33, 255)
+OLIVE = (96, 104, 60, 255)
+OLIVE_LIGHT = (118, 127, 74, 255)
+OLIVE_DARK = (68, 73, 42, 255)
+METAL = (140, 146, 151, 255)
+METAL_DARK = (88, 94, 99, 255)
 WARHEAD = (146, 60, 44, 255)
 WARHEAD_LIGHT = (186, 84, 58, 255)
 HAZARD = (222, 186, 46, 255)
@@ -69,70 +69,136 @@ def camo_patch(d, x, y, w, h, seed):
 
 
 def build_drone_skin() -> Image.Image:
+    """Paint the 64x64 skin using the exact UV boxes of DroneModel.
+
+    Box unwrap layout (per cube, ``u,v`` from ``CubeListBuilder.texOffs``):
+
+        +---------+----+----+----+
+        |   top   | -X | +Z | +X |        + -Z face of the lens is painted
+        +---------+----+----+----+        here as the glowing FPV objective
+        |  bottom | pz | nz | -Z |
+        +---------+----+----+----+
+                   | +Y | -Y |
+                   +----+----+
+    """
     im = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
+    rnd = random.Random(20241122)
 
-    # --- body (0,0) 7 x 3.5 (rounded up to 4) x 9
-    # The box unwraps as: top(0,0), bottom(?,?), sides... We simply paint the
-    # whole 0..46 x 0..46 region deterministically by faces used by the cubes.
-    # Main shell: top face 7x9 at (0,0), side band 7x4 at (0,9)? -> we paint a
-    # canvas of carbon with olive camo panels, which reads correctly from all
-    # sides of the small airframe.
-    face(im, d, 0, 0, 7, 9, CARBON, CARBON_LIGHT, 0.10)          # top plate area
-    camo_patch(d, 0, 0, 7, 9, 7)
-    face(im, d, 7, 0, 9, 7, CARBON, CARBON_LIGHT, 0.08)          # side wraps
-    camo_patch(d, 7, 0, 9, 7, 11)
-    face(im, d, 18, 0, 7, 4, CARBON_DARK, CARBON, 0.08)          # belly
-    face(im, d, 26, 0, 9, 4, CARBON_DARK, CARBON, 0.08)
+    def box(u, v, w, h, depth, base, light, dark, top=True, bottom=True, sides=True, grain=0.10):
+        """Paint a full cube unwrap with panel shading."""
+        w, h, depth = int(round(w)), int(round(h)), int(round(depth))
+        bw, bh = 2 * (w + depth), h + depth
+        # top / bottom rows
+        if top:
+            face(im, d, u + depth, v, w, depth, light, light, grain * 0.6)
+        if bottom:
+            face(im, d, u + depth + w, v, w, depth, dark, dark, grain * 0.6)
+        if sides:
+            face(im, d, u, v + depth, depth, h, base, light, grain)
+            face(im, d, u + depth + w, v + depth, depth, h, base, light, grain)
+            face(im, d, u + 2 * (depth + w), v + depth, depth, h, base, light, grain)
+            face(im, d, u + depth, v + depth, w, h, base, light, grain)
+        # panel line around each face
+        for (fx, fy, fw, fh) in (
+                (u + depth, v, w, depth),
+                (u, v + depth, depth, h),
+                (u + depth + w, v + depth, depth, h),
+                (u + 2 * (depth + w), v + depth, depth, h),
+                (u + depth, v + depth, w, h),
+                (u + depth + w, v, w, depth)):
+            if fw <= 0 or fh <= 0:
+                continue
+            d.rectangle([fx, fy, fx + fw - 1, fy + fh - 1], outline=(16, 17, 18, 255))
+        return bw, bh
 
-    # heat sink / top plate (32,0) 5 x 1 x 6 -> 5 wide, 6 tall face
-    face(im, d, 32, 0, 8, 6, METAL, METAL_DARK, 0.06)
-    for i in range(0, 8, 2):
-        d.line([32 + i, 0, 32 + i, 5], fill=METAL_DARK)
+    # --- body shell: carbon with olive camo panels --------------------------
+    box(0, 0, 7, 3.5, 9, CARBON, CARBON_LIGHT, CARBON_DARK)
+    # hazard flashes on both flanks (the -X and +X side panels)
+    for band_x in (0, 23):
+        for i in range(0, 9, 2):
+            d.line([band_x + i, 10, band_x + i, 11], fill=HAZARD)
+    # olive shoulder panels along the spine sides
+    d.rectangle([0, 5, 8, 8], fill=OLIVE_DARK)
+    d.rectangle([23, 5, 31, 8], fill=OLIVE_DARK)
+    camo_patch(d, 0, 0, 32, 12, 7)
+    camo_patch(d, 0, 0, 12, 12, 17)
+    # rivets along the spine and one vent bank per side
+    for rx in range(1, 31, 4):
+        d.point((rx, 1), fill=METAL)
+    for vy in range(5, 11, 3):
+        d.line([3, vy, 9, vy], fill=CARBON_DARK)
+        d.line([24, vy, 30, vy], fill=CARBON_DARK)
 
-    # tail boom (0,13) 2 x 1.5 x 4
-    face(im, d, 0, 13, 4, 5, OLIVE_DARK, OLIVE, 0.10)
-    face(im, d, 4, 13, 2, 4, OLIVE, OLIVE_LIGHT, 0.10)
+    # --- top plate / heat sink ---------------------------------------------
+    box(32, 0, 5, 1, 6, METAL, METAL_DARK, CARBON_DARK)
+    for fy in range(1, 7, 2):
+        d.line([38, fy, 43, fy], fill=METAL_DARK)
 
-    # camera housing (0,20) 3x3x3
-    face(im, d, 0, 20, 3, 3, CARBON_DARK, CARBON, 0.05)
-    face(im, d, 3, 20, 3, 3, CARBON, CARBON_LIGHT, 0.05)
-    # lens (14,20) 2x2x1 -> paint a glowing green lens
-    face(im, d, 14, 20, 3, 3, LENS_DARK, LENS, 0.0)
-    d.rectangle([16, 22, 17, 23], fill=LENS)
-    d.point((14, 20), fill=(230, 255, 246, 255))
-    # bezel
-    d.rectangle([13, 19, 18, 24], outline=CARBON_DARK)
-    d.rectangle([14, 19, 15, 19], fill=METAL)
+    # --- tail boom ---------------------------------------------------------
+    box(0, 13, 2, 1.5, 4, OLIVE, OLIVE_LIGHT, OLIVE_DARK)
 
-    # warhead pod (0,26) 3 x 2 x 7 and its nose (24,26) 2x2x1
-    face(im, d, 0, 26, 7, 3, WARHEAD, WARHEAD_LIGHT, 0.08)
-    face(im, d, 7, 26, 3, 2, WARHEAD, WARHEAD_LIGHT, 0.08)
-    # hazard stripes along the pod
-    for i in range(0, 8, 2):
-        d.line([i, 26, i, 28], fill=HAZARD)
-    for i in range(9, 24, 2):
-        d.point((i + 1, 26), fill=HAZARD)
-    face(im, d, 24, 26, 2, 3, WARHEAD_LIGHT, WARHEAD, 0.04)
+    # --- camera pod --------------------------------------------------------
+    box(0, 20, 3, 3, 3, CARBON_DARK, CARBON, (12, 13, 14, 255))
+    d.point((2, 22), fill=METAL)
 
-    # LED (40,26) 1x1x1
-    d.rectangle([40, 26, 41, 27], fill=LED)
-    d.point((40, 26), fill=(255, 210, 200, 255))
+    # --- lens: the -Z face of the lens cube is the FPV objective -----------
+    # unwrap of the 2x2x1 cube: -Z face lives at (u+d, v+d) sized w x h
+    lx, ly = 14 + 1, 20 + 1
+    d.rectangle([lx, ly, lx + 1, ly + 1], fill=(12, 20, 17, 255))
+    d.point((lx, ly), fill=LENS_DARK)
+    d.point((lx + 1, ly), fill=LENS)
+    d.point((lx, ly + 1), fill=LENS)
+    d.point((lx + 1, ly + 1), fill=(236, 255, 249, 255))
+    # bezel ring around the objective
+    d.rectangle([lx - 1, ly - 1, lx + 2, ly + 2], outline=METAL)
+    # other faces of the lens barrel
+    d.rectangle([14, 20, 19, 20], fill=METAL_DARK)
+    d.rectangle([14, 23, 19, 23], fill=CARBON_DARK)
 
-    # arms (42,0) 4x1x1 and motor bells (52,0) 1.5^3
-    face(im, d, 42, 0, 4, 4, CARBON_LIGHT, METAL_DARK, 0.05)
-    face(im, d, 52, 0, 4, 4, METAL, METAL_DARK, 0.04)
-    d.rectangle([52, 0, 55, 1], fill=METAL_DARK)
+    # --- warhead pod: olive body, hazard band, red nose --------------------
+    box(0, 26, 3, 2, 7, OLIVE, OLIVE_LIGHT, OLIVE_DARK)
+    # hazard band on the +X side panel and the top row
+    for hx in range(0, 32, 4):
+        d.line([hx, 28, hx + 1, 30], fill=HAZARD)
+    for hy in range(26, 28):
+        for hx in range(10, 20, 3):
+            d.point((hx, hy), fill=HAZARD)
+    # nose cone and tail cap in warhead red
+    box(24, 26, 2, 2, 1, WARHEAD, WARHEAD_LIGHT, WARHEAD_LIGHT)
+    box(32, 26, 3, 2, 1, WARHEAD, WARHEAD_LIGHT, WARHEAD_LIGHT)
 
-    # props (44,8) 4x0x1 and (44,10) 1x0x4 - two thin dark blades
-    face(im, d, 44, 8, 4, 3, (46, 48, 52, 255), (70, 74, 78, 255), 0.05)
-    face(im, d, 44, 10, 4, 3, (46, 48, 52, 255), (70, 74, 78, 255), 0.05)
-    d.point((45, 9), fill=(120, 124, 128, 255))
+    # --- nav LED -----------------------------------------------------------
+    d.rectangle([40, 26, 43, 27], fill=LED)
+    d.point((41, 26), fill=(255, 214, 206, 255))
 
-    # skids (0,36) 9x1x1, (0,40) and struts (28,36)/(32,36)
-    for x0, y0, w, h in ((0, 36, 9, 3), (0, 40, 9, 3), (28, 36, 2, 2), (32, 36, 2, 2)):
-        face(im, d, x0, y0, w, h, METAL_DARK, METAL, 0.08)
+    # --- arms and motors ---------------------------------------------------
+    box(42, 0, 4, 1, 1, CARBON_LIGHT, METAL_DARK, CARBON_DARK)
+    box(52, 0, 1.5, 1.5, 1.5, METAL, METAL_DARK, CARBON_DARK)
+    d.point((53, 1), fill=(210, 214, 218, 255))
 
+    # --- props: thin dark blades with a worn tip ---------------------------
+    face(im, d, 44, 8, 10, 1, (44, 46, 50, 255), (66, 70, 74, 255), 0.05)
+    face(im, d, 44, 10, 10, 4, (44, 46, 50, 255), (66, 70, 74, 255), 0.05)
+    d.point((44, 8), fill=(150, 156, 160, 255))
+    d.point((53, 8), fill=(150, 156, 160, 255))
+
+    # --- landing skids -----------------------------------------------------
+    box(0, 36, 9, 1, 1, METAL_DARK, METAL, (52, 56, 60, 255))
+    box(0, 40, 9, 1, 1, METAL_DARK, METAL, (52, 56, 60, 255))
+    box(28, 36, 1, 1, 1, METAL, METAL_DARK, CARBON_DARK)
+    box(32, 36, 1, 1, 1, METAL, METAL_DARK, CARBON_DARK)
+
+    # slight per-pixel wear so the Carbon isn't perfectly flat
+    px = im.load()
+    for _ in range(420):
+        x, y = rnd.randrange(64), rnd.randrange(64)
+        r, g, b, a = px[x, y]
+        if a == 0:
+            continue
+        delta = rnd.choice((-10, -6, 6, 10))
+        px[x, y] = (max(0, min(255, r + delta)), max(0, min(255, g + delta)),
+                    max(0, min(255, b + delta)), a)
     return im
 
 
