@@ -22,7 +22,6 @@ public final class ModEntities {
 					.clientTrackingRange(12)
 					.updateInterval(1)
 					.fireImmune()
-					.noSummon()
 					.build("combat_drone"));
 
 	private ModEntities() {

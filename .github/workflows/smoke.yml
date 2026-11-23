@@ -1,0 +1,52 @@
+name: smoke
+
+on:
+  push:
+    branches: ['arena/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  server:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Prepare server run dir
+        run: |
+          chmod +x ./gradlew
+          mkdir -p run
+          echo "eula=true" > run/eula.txt
+          cat > run/server.properties <<'PROPS'
+online-mode=false
+level-type=minecraft\:flat
+level-name=world
+max-tick-time=-1
+spawn-protection=0
+sync-chunk-writes=false
+PROPS
+      - name: Run dedicated server with the mod
+        timeout-minutes: 12
+        run: |
+          set +e
+          ( sleep 150; echo "stop" ) | timeout 260 ./gradlew runServer --no-daemon --console=plain > /tmp/server.log 2>&1
+          echo "gradle exit=$?"
+          tail -n 120 /tmp/server.log
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo '### smoke: dedicated server'
+            echo '```'
+            grep -n -i -E "dron|mixin|exception|error|Done \(|starting minecraft server" /tmp/server.log | head -100
+            echo '```'
+          } > /tmp/issue.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "smoke report server ${GITHUB_SHA:0:7}" --body-file /tmp/issue.md
