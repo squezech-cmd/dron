@@ -17,3 +17,6 @@ run/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated preview renders (tools/preview_model.py)
+tools/preview/
