@@ -5,59 +5,66 @@ set -uo pipefail
 cat > /tmp/cp.gradle <<'EOF'
 allprojects {
     tasks.register("printCompileCp") {
-        doLast {
-            configurations.compileClasspath.each { println it }
-        }
+        doLast { configurations.compileClasspath.each { println it } }
     }
 }
 EOF
 ./gradlew -q -I /tmp/cp.gradle printCompileCp > /tmp/cp.txt 2>/dev/null || true
-echo "########## compile classpath"
-cat /tmp/cp.txt
+CLIENT="$(grep -E 'minecraft-client-only[^ ]*\.jar' /tmp/cp.txt | head -1)"
+COMMON="$(grep -E 'minecraft-common[^ ]*\.jar' /tmp/cp.txt | head -1)"
+CP="$CLIENT:$COMMON"
+echo "CLIENT=$CLIENT"
 
-MCJAR="$(grep -oE '/[^ ]*minecraft[^ ]*\.jar' /tmp/cp.txt | head -1)"
-echo "MCJAR=$MCJAR"
-if [ -z "$MCJAR" ] || [ ! -f "$MCJAR" ]; then
-  MCJAR="$(find "$HOME/.gradle/caches/fabric-loom" -name '*.jar' -print0 2>/dev/null \
-    | xargs -0 -I{} sh -c 'unzip -l "{}" 2>/dev/null | grep -q "net/minecraft/world/entity/Entity.class" && echo "{}"' \
-    | head -3 | tail -1)"
-  echo "MCJAR(fallback)=$MCJAR"
-fi
-if [ -z "$MCJAR" ] || [ ! -f "$MCJAR" ]; then
-  echo "no named minecraft jar found"
-  find "$HOME/.gradle/caches/fabric-loom" -name '*.jar' | sed "s|$HOME|~|" | head -40
-  exit 0
-fi
-
-dump() {
-  echo "########## $1"
-  javap -p -cp "$MCJAR" "$1" 2>&1
-}
-grep_dump() {
-  echo "########## $1 (grep: $2)"
-  javap -p -cp "$MCJAR" "$1" 2>&1 | grep -E "$2" | head -40
-}
+dump() { echo "########## $1"; javap -p -cp "$CP" "$1" 2>&1; }
+g() { echo "########## $1 (grep: $2)"; javap -p -cp "$CP" "$1" 2>&1 | grep -E "$2" | head -50; }
 
 dump net.minecraft.client.player.Input
-dump net.minecraft.client.Camera
-dump net.minecraft.client.KeyMapping
-dump net.minecraft.world.level.Explosion
-grep_dump net.minecraft.client.Minecraft 'cameraEntity|CameraEntity|options;|player;|level;|font;|hitResult|screen;|setScreen|getWindow|execute|getInstance|playerList|gameMode|gameRenderer|mouseHandler|isPaused'
-grep_dump net.minecraft.client.Options 'KeyMapping key|hideGui|sensitivity'
-grep_dump net.minecraft.client.gui.GuiGraphics 'fill|drawString|blit|Scissor|pose|drawCenteredString|renderOutline|renderTooltip|setColor|drawTexture'
-grep_dump net.minecraft.client.gui.Font 'width|lineHeight|draw' 
-grep_dump net.minecraft.world.level.Level 'explode|getEntities|noCollision|playSound|isClientSide|hasChunkAt|getBlockStates|isLoaded|clip'
-grep_dump net.minecraft.server.level.ServerLevel 'sendParticles|playSound'
-grep_dump net.minecraft.world.entity.Entity 'hurt|setPos|getBoundingBox|DeltaMovement|noPhysics|discard|isRemoved|canBeCollidedWith|isPickable|getFirstPassenger|hasPassenger|blockPosition|getPosition\(|setYRot|setXRot|getLookAngle|isNoGravity|setNoGravity|shouldRenderAtSqrDistance|isAttackable|canChangeDimensions|getEyePosition|kill\(|isSpectator|isPushable|getVehicle|startRiding|stopRiding|onPassengerTurned|positionRider|getControllingPassenger|isPassenger|isVehicle|setDeltaMovement|getViewVector|getRotationVector'
-grep_dump net.minecraft.world.entity.player.Player 'Input input|getGameProfile|displayClientMessage|isSpectator|isCreative|abilities|mayfly|flying|getAbilities|stopSleeping|getVehicle|getYRot'
-grep_dump net.minecraft.client.player.LocalPlayer 'input|isControlledByLocalInstance|getYRot|sendPosition'
-grep_dump net.minecraft.world.phys.AABB 'deflate|inflate|move|contains|getCenter|expandTowards|intersects'
-grep_dump net.minecraft.world.phys.Vec3 'scale|add|length|normalize|distanceTo|dot|cross|subtract|multiply|horizontalDistance'
-grep_dump net.minecraft.util.Mth 'clamp\(|lerp\(|rotLerp|wrapDegrees|lerpInt'
-grep_dump net.minecraft.world.item.ItemStack 'is\(|getItem|getOrCreateTag|getTag'
-grep_dump net.minecraft.world.item.Item 'Properties|use\(|useOn|isEnchantable|m_'
-echo "########## Explosion ctor"
-javap -p -cp "$MCJAR" net.minecraft.world.level.Explosion 2>&1 | grep -E "Explosion\(|explode|finalize"
-echo "########## ParticleTypes"
-javap -p -cp "$MCJAR" net.minecraft.core.particles.ParticleTypes 2>&1 | grep -E "EXPLOSION|SMOKE|FLAME|ELECTRIC|CRIT|LAVA|ASH|END_ROD|FIREWORK|SONIC|POOF" | head -20
+g net.minecraft.client.Options 'KeyMapping key|boolean hideGui|OptionInstance<java.lang.Integer> fov|sensitivity|invertYMouse'
+g net.minecraft.client.Minecraft 'cameraEntity|hitResult|crosshairPickEntity|player;|level;|font;|screen;|setScreen|getWindow|execute|getInstance|gameRenderer|mouseHandler|options;|playerList|gameMode|isPaused|startAttack|continueAttack|getSoundManager|getFrameTime|getDeltaFrameTime'
+g net.minecraft.client.Camera 'setRotation|setPosition|setup|rotation|forwards|up;|left;|getPosition|getLookVector|getXRot|getYRot|getEntity'
+g net.minecraft.client.gui.Gui 'void render|renderHotbar|renderCrosshair|renderPlayerHealth|renderExperienceBar|renderItemHotbar|renderEffects|renderBossOverlay|renderDebug'
+g net.minecraft.client.gui.GuiGraphics 'fill\(|fillGradient|drawString|blit\(|enableScissor|disableScissor|pose\(|drawCenteredString|renderOutline|setColor|hLine|vLine|drawTexture|bufferSource|flush'
+g net.minecraft.client.gui.Font 'int width|int lineHeight|int draw|drawInBatch'
+g net.minecraft.client.KeyMapping 'isDown|consumeClick|getKey|setDown|isUnbound|matches|getCategory|saveString|click'
+g net.minecraft.client.resources.sounds.AbstractTickableSoundInstance 'AbstractTickableSoundInstance\(|isStopped|tick\(|stop\(|canPlaySound|updateVolume|updatePitch'
+g net.minecraft.client.resources.sounds.SoundInstance 'isLooping|getDelay|getVolume|getPitch|isRelative|Attenuation|getLocation|canStartSilent|getSource'
+g net.minecraft.client.resources.sounds.SimpleSoundInstance 'forEntity|forUI|forLocalAmbience|getInstance'
+g net.minecraft.client.sounds.SoundManager 'play\(|stop\(|isActive'
+g net.minecraft.world.entity.Entity 'getYRot|getXRot|getViewVector|getEyePosition|position\(|getPosition\(|distanceTo|getBoundingBox|isRemoved|getId|getType|yRotO|xRotO|zo|getEntityData|getData|setData|isInvisible|isSpectator|isAlive|level\(|getDeltaMovement|setDeltaMovement|isPassenger|getVehicle|discard|kill|getBbHeight|getBbWidth|getForward'
+echo "########## EntityDataSerializers"
+g net.minecraft.network.syncher.EntityDataSerializers 'INT|BOOLEAN|FLOAT|OPTIONAL_UUID|BYTE|STRING|UUID' | head
+echo "########## Entity data methods"
+g net.minecraft.world.entity.Entity 'SynchedEntityData|getEntityData|tick\(|tickCount|setPos|getId|stringUUID|blockPosition|positionCodec|getAddEntityPacket|hasImpulse|isNoGravity|setNoGravity|onGround|horizontalCollision|verticalCollision|getPassengers|isVehicle'
+echo "########## ExplosionInteraction values"
+g 'net.minecraft.world.level.Level$ExplosionInteraction' 'NONE|BLOCK|MOB|TNT|ExplosionInteraction'
+echo "########## ClipContext"
+dump net.minecraft.world.level.ClipContext
+dump 'net.minecraft.world.level.ClipContext$Block'
+dump 'net.minecraft.world.level.ClipContext$Fluid'
+g net.minecraft.world.level.Level 'clip\(|getBlockState|isEmptyBlock'
+g net.minecraft.world.phys.HitResult 'getType|getLocation|Type|isInside'
+echo "########## DamageSource"
+g net.minecraft.world.damagesource.DamageSources 'explosion|playerAttack|generic|magic'
+echo "########## ServerPlayer"
+g net.minecraft.server.level.ServerPlayer 'getYRot|getXRot|displayClientMessage|connection|getServer|teleportTo|setCamera|hurt'
+echo "########## Item"
+g net.minecraft.world.item.Item 'use\(|getName|Properties|isEnchantable|verifyTagAfterLoad'
+echo "########## Fabric"
+for c in \
+ net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents \
+ net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback \
+ net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking \
+ net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking \
+ net.fabricmc.fabric.api.networking.v1.PacketByteBufs \
+ net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup \
+ net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper \
+ net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry \
+ net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry \
+ net.fabricmc.fabric.api.client.rendering.v1.ColorProviderRegistry \
+ net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents \
+ net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry ; do
+  f=$(grep -oE '/[^ ]*(fabric-[^ /]*)\/[^ ]*\.jar' /tmp/cp.txt | head -40)
+  echo "########## $c"
+  javap -p -cp "$(echo "$CP"; echo "$(grep -oE '/[^ ]*\.jar' /tmp/cp.txt | tr '\n' ':')" | tr '\n' ':')" "$c" 2>&1 | head -40
+done
 echo "########## done"
