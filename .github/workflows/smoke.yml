@@ -37,6 +37,19 @@ jobs:
           ( sleep 150; echo "stop" ) | timeout 260 ./gradlew runServer --no-daemon --console=plain > /tmp/server.log 2>&1
           echo "gradle exit=$?"
           tail -n 120 /tmp/server.log
+      - name: Assert clean startup
+        run: |
+          set -euo pipefail
+          if grep -q "Mixin apply for mod dron failed\|Failed to start the minecraft server\|Exception in server tick\|Unexpected error" /tmp/server.log; then
+            echo "::error::server crashed"
+            grep -n -E "Mixin apply|Failed to start|Exception|Caused by" /tmp/server.log | head -40
+            exit 1
+          fi
+          if ! grep -q 'Done (' /tmp/server.log; then
+            echo "::error::server never reached the Done state"
+            exit 1
+          fi
+          echo "server started cleanly"
       - name: Report
         if: always()
         env:

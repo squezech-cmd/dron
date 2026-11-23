@@ -94,6 +94,8 @@ public class CombatDroneEntity extends Entity {
 	private int jammerGrace;
 
 	/** Latest control frame received from the pilot's client. */
+	/** Command station (launch point) the operator returns to. */
+	private Vec3 home;
 	private byte inForward;
 	private byte inStrafe;
 	private boolean inUp;
@@ -128,6 +130,14 @@ public class CombatDroneEntity extends Entity {
 
 	public void setOwnerUUID(UUID uuid) {
 		this.entityData.set(DATA_OWNER, Optional.ofNullable(uuid));
+	}
+
+	public void setHome(Vec3 home) {
+		this.home = home;
+	}
+
+	public Vec3 getHome() {
+		return this.home;
 	}
 
 	/** Resolved at most once per tick, on both sides. */
@@ -479,7 +489,7 @@ public class CombatDroneEntity extends Entity {
 
 		Level level = this.level();
 		if (this.getFirstPassenger() instanceof Player rider) {
-			rider.stopRiding();
+			this.returnPilotHome(rider);
 		}
 		if (pilot != null) {
 			pilot.displayClientMessage(Component.translatable("dron.message.impact"), true);
@@ -503,7 +513,7 @@ public class CombatDroneEntity extends Entity {
 
 		Level level = this.level();
 		if (this.getFirstPassenger() instanceof Player rider) {
-			rider.stopRiding();
+			this.returnPilotHome(rider);
 		}
 		if (pilot != null) {
 			pilot.displayClientMessage(Component.translatable(reasonKey), true);
@@ -529,7 +539,7 @@ public class CombatDroneEntity extends Entity {
 		this.detonated = true;
 		this.getEntityData().set(DATA_ARMED, false);
 		if (this.getFirstPassenger() instanceof Player rider) {
-			rider.stopRiding();
+			this.returnPilotHome(rider);
 		}
 
 		if (this.level() instanceof ServerLevel serverLevel) {
@@ -546,7 +556,7 @@ public class CombatDroneEntity extends Entity {
 		this.detonated = true;
 		this.getEntityData().set(DATA_ARMED, false);
 		if (this.getFirstPassenger() instanceof Player rider) {
-			rider.stopRiding();
+			this.returnPilotHome(rider);
 		}
 		this.finalizeRecall(null);
 	}
@@ -556,6 +566,22 @@ public class CombatDroneEntity extends Entity {
 			requester.displayClientMessage(Component.translatable("dron.message.recall"), true);
 		}
 		this.discard();
+	}
+
+	/**
+	 * The operator is back at the command station: hand the rider over to the
+	 * launch point so nobody is dropped out of the sky.
+	 */
+	private void returnPilotHome(Player rider) {
+		if (!(rider instanceof ServerPlayer serverPlayer)) {
+			return;
+		}
+		if (this.home == null || serverPlayer.level() != this.level()) {
+			return;
+		}
+		serverPlayer.stopRiding();
+		serverPlayer.teleportTo(this.home.x, this.home.y + 0.1D, this.home.z);
+		serverPlayer.fallDistance = 0.0F;
 	}
 
 	private void spawnBurst() {
@@ -666,6 +692,11 @@ public class CombatDroneEntity extends Entity {
 			tag.putUUID("Owner", owner);
 		}
 		tag.putInt("Fuel", this.getFuel());
+		if (this.home != null) {
+			tag.putDouble("HomeX", this.home.x);
+			tag.putDouble("HomeY", this.home.y);
+			tag.putDouble("HomeZ", this.home.z);
+		}
 		tag.putBoolean("Booster", this.hasBooster());
 	}
 
@@ -676,6 +707,9 @@ public class CombatDroneEntity extends Entity {
 		}
 		if (tag.contains("Fuel")) {
 			this.entityData.set(DATA_FUEL, tag.getInt("Fuel"));
+		}
+		if (tag.contains("HomeX")) {
+			this.home = new Vec3(tag.getDouble("HomeX"), tag.getDouble("HomeY"), tag.getDouble("HomeZ"));
 		}
 		if (tag.contains("Booster")) {
 			this.entityData.set(DATA_BOOSTER, tag.getBoolean("Booster"));

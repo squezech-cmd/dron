@@ -69,6 +69,7 @@ public class DroneRemoteItem extends Item {
 
 		drone.moveTo(position.x, position.y, position.z, player.getYRot(), 0.0F);
 		drone.setOwnerUUID(player.getUUID());
+		drone.setHome(player.position());
 		serverLevel.addFreshEntity(drone);
 
 		serverLevel.playSound(null, position.x, position.y, position.z, ModSounds.DRONE_LAUNCH,
