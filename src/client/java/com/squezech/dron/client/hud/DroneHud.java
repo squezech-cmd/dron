@@ -1,322 +1,503 @@
 package com.squezech.dron.client.hud;
 
+import com.squezech.dron.client.DroneClientState;
 import com.squezech.dron.entity.CombatDroneEntity;
 import com.squezech.dron.registry.ModItems;
 
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Military FPV HUD of the drone controller.
+ * Military FPV cockpit HUD of the drone controller.
  *
- * <p>Everything is drawn with {@link GuiGraphics} primitives (fills and text), so
- * it needs no extra texture slots and stays crisp at every GUI scale.
+ * <p>Everything is drawn with {@link GuiGraphics} primitives (fills, gradients
+ * and text), so no extra textures are needed and the overlay stays pixel-crisp
+ * at every GUI scale. Layout is anchored around a virtual 320x180 "visor" that
+ * scales with the window.
  */
 public final class DroneHud {
-	private static final int GREEN = 0xFF64F5B4;
-	private static final int GREEN_DIM = 0xB03CB98A;
-	private static final int GREEN_DARK = 0x5520704F;
-	private static final int RED = 0xFFFF5148;
-	private static final int AMBER = 0xFFFFC046;
-	private static final int TEXT = 0xFFE9FFF6;
-	private static final int TEXT_DIM = 0xFF86A99B;
-	private static final int PANEL = 0xB20A1512;
-
-	private static int fuelSync = CombatDroneEntity.MAX_FUEL;
-	private static int signalSync = CombatDroneEntity.MAX_SIGNAL_BLOCKS;
-	private static long lastSync;
-
 	private DroneHud() {
 	}
 
-	public static void acceptTelemetry(int droneId, int fuel, int signal) {
-		fuelSync = fuel;
-		signalSync = signal;
-		lastSync = System.currentTimeMillis();
-	}
-
-	public static void tick(Minecraft client) {
-		if (client.player == null) {
-			return;
-		}
-		if (client.player.getVehicle() instanceof CombatDroneEntity drone
-				&& System.currentTimeMillis() - lastSync > 400L) {
-			fuelSync = drone.getFuel();
-			signalSync = drone.getSignal();
-		}
-	}
-
-	/**
-	 * R key: recall the drone. The server side of {@code dron:recall} does the work.
-	 */
-	public static void requestRecall(Minecraft client) {
-		if (client.getConnection() == null) {
-			return;
-		}
-		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
-				com.squezech.dron.network.DronNetwork.RECALL,
-				net.fabricmc.fabric.api.networking.v1.PacketByteBufs.empty());
-	}
-
-	// ------------------------------------------------------------------ entry
-
-	public static void render(GuiGraphics g, float tickDelta) {
+	public static void render(GuiGraphics graphics, float tickDelta) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
-		if (player == null || client.options.hideGui || client.screen != null) {
+		if (player == null || client.options.hideGui || client.screen != null || client.level == null) {
 			return;
 		}
 
 		if (player.getVehicle() instanceof CombatDroneEntity drone) {
-			renderCockpit(g, client, player, drone, tickDelta);
+			new Cockpit(graphics, client, player, drone).draw();
 			return;
 		}
 
-		boolean holding = player.getMainHandItem().is(ModItems.DRONE_REMOTE)
-				|| player.getOffhandItem().is(ModItems.DRONE_REMOTE);
-		if (holding) {
-			renderStandby(g, client);
+		if (player.getMainHandItem().is(ModItems.DRONE_REMOTE) || player.getOffhandItem().is(ModItems.DRONE_REMOTE)) {
+			drawStandby(graphics, client);
 		}
 	}
 
-	private static void renderCockpit(GuiGraphics g, Minecraft client, LocalPlayer player, CombatDroneEntity drone,
-			float tickDelta) {
-		int w = client.getWindow().getGuiScaledWidth();
-		int h = client.getWindow().getGuiScaledHeight();
-		var font = client.font;
+	// --------------------------------------------------------------- standby
+
+	private static void drawStandby(GuiGraphics g, Minecraft client) {
+		Font font = client.font;
+		int w = g.guiWidth();
+		int h = g.guiHeight();
 		int cx = w / 2;
-		int cy = h / 2;
+		int y = h - 52;
 
-		float fuel = Mth.clamp(fuelSync / (float) CombatDroneEntity.MAX_FUEL, 0.0F, 1.0F);
-		float link = Mth.clamp(signalSync / (float) CombatDroneEntity.MAX_SIGNAL_BLOCKS, 0.0F, 1.0F);
-		Vec3 velocity = drone.getDeltaMovement().scale(20.0D);
-		double speed = velocity.length();
-		int altitude = (int) Math.max(0.0F, (float) (drone.getY() - client.level.getSeaLevel()));
-		int distance = (int) drone.position().distanceTo(player.position());
+		String title = "\u25C8  ПУЛЬТ БОЕВОГО ДРОНА  \u25C8";
+		int tw = font.width(title);
+		g.fillGradient(cx - tw / 2 - 12, y, cx + tw / 2 + 12, y + 30, HudPalette.PANEL_DEEP, 0x00000000 + HudPalette.PANEL);
+		g.fill(cx - tw / 2 - 12, y, cx + tw / 2 + 12, y + 1, HudPalette.GREEN);
+		g.drawString(font, title, cx - tw / 2, y + 4, HudPalette.GREEN, false);
 
-		boolean lowFuel = fuel < 0.2F;
-		boolean weakLink = link < 0.25F;
-		boolean blink = (System.currentTimeMillis() / 300L) % 2L == 0L;
+		String hint = "ПКМ — запуск   \u00B7   W/A/S/D — тяга   \u00B7   ПРОБЕЛ — вверх   \u00B7   SHIFT — вниз   \u00B7   ЛКМ — подрыв   \u00B7   R — отзыв";
+		int hw = font.width(hint);
+		g.drawString(font, hint, cx - hw / 2, y + 17, HudPalette.TEXT_DIM, false);
 
-		drawScanlines(g, w, h);
-		drawCornerFrame(g, w, h);
-
-		// --- top: callsign strip + link lamp --------------------------------
-		String callsign = "DRON-01  //  " + player.getGameProfile().getName().toUpperCase();
-		int callW = font.width(callsign) + 24;
-		panel(g, cx - callW / 2, 6, callW, 15);
-		text(g, font, callsign, cx - callW / 2 + 12, 10, GREEN);
-
-		g.fill(cx + callW / 2 - 8, 11, cx + callW / 2 - 4, 15, weakLink ? RED : GREEN);
-
-		// --- compass tape ---------------------------------------------------
-		drawCompass(g, client, cx, 26, player.getYRot());
-
-		// --- horizon / reticle ----------------------------------------------
-		drawHorizon(g, cx, cy, drone, tickDelta, lowFuel || weakLink);
-		drawReticle(g, cx, cy, weakLink && blink);
-
-		// --- left: flight data ----------------------------------------------
-		int lx = 14;
-		int ly = cy - 56;
-		gauge(g, font, lx, ly, "СКОРОСТЬ", Math.round(speed * 72.0D) + " км/ч", (float) (speed / CombatDroneEntity.MAX_SPEED), GREEN);
-		gauge(g, font, lx, ly + 36, "ВЫСОТА", altitude + " м", Mth.clamp(altitude / 150.0F, 0.0F, 1.0F), GREEN);
-		gauge(g, font, lx, ly + 72, "ДИСТ.", (distance / 40) + " x40 м", Mth.clamp(distance / 260.0F, 0.0F, 1.0F),
-				distance > 200 ? AMBER : GREEN);
-
-		// --- right: systems -------------------------------------------------
-		int rx = w - 14 - 92;
-		gauge(g, font, rx, ly, "БАТАРЕЯ", Math.round(fuel * 100.0F) + "%", fuel, lowFuel ? RED : GREEN);
-		gauge(g, font, rx, ly + 36, "СИГНАЛ", signalSync + " м", link, weakLink ? RED : GREEN);
-		armedStrip(g, font, rx, ly + 72, !lowFuel && !weakLink);
-
-		// --- bottom hints ---------------------------------------------------
-		String hint = "WASD — тяга    ПРОБЕЛ — вверх    SHIFT — вниз    R — отмена";
-		int hintW = font.width(hint) + 22;
-		panel(g, cx - hintW / 2, h - 24, hintW, 14);
-		text(g, font, hint, cx - hintW / 2 + 11, h - 20, TEXT_DIM);
-
-		// --- warnings -------------------------------------------------------
-		if (weakLink && blink) {
-			banner(g, font, cx, cy - 74, "ПОТЕРЯ СИГНАЛА", RED);
-		} else if (lowFuel && blink) {
-			banner(g, font, cx, cy - 74, "НИЗКИЙ ЗАРЯД", AMBER);
-		}
-
-		// --- recording lamp -------------------------------------------------
-		if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
-			g.fill(w - 28, 20, w - 22, 26, RED);
-		}
-		text(g, font, "REC", w - 46, 20, 0xFFFF8F88);
-		text(g, font, "FPV-01", w - 46, 34, GREEN_DIM);
+		// Soft side lamps so the controller feels "armed".
+		long time = System.currentTimeMillis();
+		boolean blink = (time / 500L) % 2L == 0L;
+		g.fill(cx - tw / 2 - 22, y + 13, cx - tw / 2 - 18, y + 17, blink ? HudPalette.GREEN : HudPalette.GREEN_DARK);
+		g.fill(cx + tw / 2 + 18, y + 13, cx + tw / 2 + 22, y + 17, blink ? HudPalette.GREEN : HudPalette.GREEN_DARK);
 	}
 
-	private static void renderStandby(GuiGraphics g, Minecraft client) {
-		int w = client.getWindow().getGuiScaledWidth();
-		int h = client.getWindow().getGuiScaledHeight();
-		var font = client.font;
-		String line = "ПУЛЬТ ДРОНА ГОТОВ";
-		int width = font.width(line) + 20;
-		panel(g, w / 2 - width / 2, h - 40, width, 14);
-		text(g, font, line, w / 2 - width / 2 + 10, h - 36, GREEN);
-	}
+	// --------------------------------------------------------------- cockpit
 
-	// ------------------------------------------------------------------ parts
+	private static final class Cockpit {
+		private final GuiGraphics g;
+		private final Minecraft client;
+		private final LocalPlayer player;
+		private final CombatDroneEntity drone;
+		private final Font font;
 
-	private static void drawScanlines(GuiGraphics g, int w, int h) {
-		for (int y = 0; y < h; y += 4) {
-			g.fill(0, y, w, y + 1, 0x1E00120C);
+		private final int w;
+		private final int h;
+		private final int cx;
+		private final int cy;
+		private final int cx0;
+		private final int cy0;
+
+		private final float fuel;
+		private final float link;
+		private final double speed;
+		private final int altitude;
+		private final double range;
+
+		private final boolean lowFuel;
+		private final boolean weakLink;
+		private final boolean jamming;
+		private final boolean blink;
+
+		Cockpit(GuiGraphics g, Minecraft client, LocalPlayer player, CombatDroneEntity drone) {
+			this.g = g;
+			this.client = client;
+			this.player = player;
+			this.drone = drone;
+			this.font = client.font;
+
+			this.w = g.guiWidth();
+			this.h = g.guiHeight();
+			this.cx = this.w / 2;
+			this.cy = this.h / 2;
+
+			// The visor keeps its 16:9 proportions on very wide or tall windows.
+			int vh = (int) Mth.clamp(this.h * 0.92F, 120.0F, 320.0F);
+			int vw = vh * 16 / 9;
+			this.cx0 = this.w / 2 - vw / 2;
+			this.cy0 = this.h / 2 - vh / 2;
+
+			this.fuel = DroneClientState.getFuelFraction();
+			this.link = DroneClientState.getSignalFraction();
+			this.speed = drone.getDeltaMovement().length() * 20.0D;
+			this.altitude = (int) Math.max(0.0F, drone.getY() - client.level.getSeaLevel());
+			this.range = player.position().distanceTo(drone.position());
+
+			this.lowFuel = this.fuel < 0.2F;
+			this.weakLink = this.link < 0.25F;
+			this.jamming = DroneClientState.isJamming() || this.link < 0.45F;
+			this.blink = (System.currentTimeMillis() / 320L) % 2L == 0L;
 		}
-		for (int y = 0; y < h; y += 12) {
-			g.fill(0, y, w, y + 1, 0x10000000);
-		}
-		// vignette
-		g.fill(0, 0, w, 2, 0x66040A08);
-		g.fill(0, h - 2, w, h, 0x66040A08);
-		g.fill(0, 0, 2, h, 0x66040A08);
-		g.fill(w - 2, 0, w, h, 0x66040A08);
-	}
 
-	private static void drawCornerFrame(GuiGraphics g, int w, int h) {
-		int len = 30;
-		g.fill(5, 5, 5 + len, 6, GREEN);
-		g.fill(5, 5, 6, 5 + len, GREEN);
-		g.fill(w - 5 - len, 5, w - 5, 6, GREEN);
-		g.fill(w - 6, 5, w - 5, 5 + len, GREEN);
-		g.fill(5, h - 6, 5 + len, h - 5, GREEN);
-		g.fill(5, h - 5 - len, 6, h - 5, GREEN);
-		g.fill(w - 5 - len, h - 6, w - 5, h - 5, GREEN);
-		g.fill(w - 6, h - 5 - len, w - 5, h - 5, GREEN);
+		void draw() {
+			drawScanlines();
+			drawVignette();
+			drawCornerFrame();
 
-		// side ticks
-		for (int y = h / 4; y < h * 3 / 4; y += 8) {
-			g.fill(5, y, 9, y + 1, GREEN_DARK);
-			g.fill(w - 9, y, w - 5, y + 1, GREEN_DARK);
-		}
-	}
+			drawTopStrip();
+			drawCompass();
+			drawHorizonLadder();
+			drawReticle();
+			drawGauges();
+			drawBoresightRail();
+			drawBottomHint();
+			drawWarnings();
+			drawRecordingLamp();
 
-	private static void drawCompass(GuiGraphics g, Minecraft client, int cx, int y, float yaw) {
-		var font = client.font;
-		int tapeW = 150;
-		int left = cx - tapeW / 2;
-		g.fill(left, y, left + tapeW, y + 12, PANEL);
-		g.fill(left, y + 12, left + tapeW, y + 13, GREEN_DIM);
-
-		String[] labels = {"С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"};
-		float heading = Mth.wrapDegrees(yaw);
-
-		for (int deg = 0; deg < 360; deg += 15) {
-			float diff = Mth.wrapDegrees(deg - heading);
-			if (Math.abs(diff) > 72.0F) {
-				continue;
-			}
-			int px = cx + (int) (diff / 75.0F * (tapeW / 2.0F));
-			boolean major = deg % 45 == 0;
-			g.fill(px, y + 2, px + 1, y + 2 + (major ? 5 : 2), major ? GREEN : GREEN_DIM);
-			if (major) {
-				String label = labels[deg / 45];
-				text(g, font, label, px - font.width(label) / 2, y + 8, TEXT);
+			if (this.jamming && this.blink) {
+				this.g.fill(this.cx0, this.cy0, this.cx0 + this.w, this.cy0 + this.h, 0x14FF4B44);
 			}
 		}
 
-		g.fill(cx, y - 2, cx + 1, y + 14, AMBER);
-		g.fill(cx - 2, y + 13, cx + 4, y + 14, AMBER);
-	}
+		// --- chrome ------------------------------------------------------
 
-	private static void drawHorizon(GuiGraphics g, int cx, int cy, CombatDroneEntity drone, float tickDelta,
-			boolean alarm) {
-		float pitch = Mth.lerp(tickDelta, drone.xRotO, drone.getXRot());
-		int offset = (int) (pitch * 1.4F);
-		int color = alarm ? AMBER : GREEN_DIM;
-		int half = 58;
-
-		g.fill(cx - half, cy + offset, cx - 18, cy + offset + 1, color);
-		g.fill(cx + 18, cy + offset, cx + half, cy + offset + 1, color);
-		g.fill(cx - half, cy + offset - 5, cx - half + 14, cy + offset - 4, GREEN_DARK);
-		g.fill(cx + half - 14, cy + offset - 5, cx + half, cy + offset - 4, GREEN_DARK);
-
-		// roll tick marks
-		float roll = Mth.lerp(tickDelta, drone.yRotO, drone.getYRot());
-		for (int i = -2; i <= 2; i++) {
-			int y = cy + offset + i * 9;
-			g.fill(cx - half + 2, y, cx - half + 6, y + 1, GREEN_DARK);
+		private void drawScanlines() {
+			for (int y = 0; y < this.h; y += 3) {
+				this.g.fill(0, y, this.w, y + 1, HudPalette.SCANLINE);
+			}
+			// Slow rolling tear of a cheap analogue downlink.
+			int tear = (int) ((System.currentTimeMillis() / 14L) % (this.h + 40)) - 20;
+			this.g.fill(0, tear, this.w, tear + 2, 0x18B6FFDC);
 		}
-	}
 
-	private static void drawReticle(GuiGraphics g, int cx, int cy, boolean alarm) {
-		int c = alarm ? RED : GREEN;
-		// brackets
-		g.fill(cx - 16, cy - 12, cx - 7, cy - 11, c);
-		g.fill(cx + 7, cy - 12, cx + 16, cy - 11, c);
-		g.fill(cx - 16, cy + 11, cx - 7, cy + 12, c);
-		g.fill(cx + 7, cy + 11, cx + 16, cy + 12, c);
-		g.fill(cx - 16, cy - 12, cx - 15, cy - 4, c);
-		g.fill(cx + 15, cy - 12, cx + 16, cy - 4, c);
-		g.fill(cx - 16, cy + 4, cx - 15, cy + 12, c);
-		g.fill(cx + 15, cy + 4, cx + 16, cy + 12, c);
-		// centre dot + ticks
-		g.fill(cx - 1, cy - 1, cx + 1, cy + 1, c);
-		g.fill(cx - 5, cy, cx - 3, cy + 1, c);
-		g.fill(cx + 3, cy, cx + 5, cy + 1, c);
-	}
-
-	private static void gauge(GuiGraphics g, net.minecraft.client.gui.Font font, int x, int y, String label,
-			String value, float ratio, int color) {
-		int barW = 92;
-		panel(g, x, y, barW + 6, 30);
-		text(g, font, label, x + 4, y + 3, TEXT_DIM);
-		text(g, font, value, x + barW + 2 - font.width(value), y + 3, TEXT);
-
-		int by = y + 16;
-		g.fill(x + 4, by, x + barW + 2, by + 7, 0x99000402);
-		int filled = (int) (Mth.clamp(ratio, 0.0F, 1.0F) * (barW - 2));
-		for (int i = 0; i < filled; i += 5) {
-			int seg = Math.min(4, filled - i);
-			g.fill(x + 5 + i, by + 1, x + 5 + i + seg, by + 6, color);
+		private void drawVignette() {
+			int depth = Math.min(28, Math.min(this.w, this.h) / 8);
+			for (int i = 0; i < depth; i += 2) {
+				int alpha = 0x40 - i * 2;
+				if (alpha <= 0) {
+					break;
+				}
+				int colour = (alpha << 24);
+				this.g.fill(0, i, this.w, i + 2, colour);
+				this.g.fill(0, this.h - i - 2, this.w, this.h - i, colour);
+				this.g.fill(i, 0, i + 2, this.h, colour);
+				this.g.fill(this.w - i - 2, 0, this.w - i, this.h, colour);
+			}
 		}
-		// centre notch
-		g.fill(x + 4, by - 1, x + barW + 2, by, GREEN_DARK);
-	}
 
-	private static void armedStrip(GuiGraphics g, net.minecraft.client.gui.Font font, int x, int y, boolean armed) {
-		int barW = 92;
-		panel(g, x, y, barW + 6, 30);
-		text(g, font, "БОЕВЗВОД", x + 4, y + 3, TEXT_DIM);
-		String state = armed ? "ВЗВЕДЁН" : "ОТКАЗ";
-		text(g, font, state, x + barW + 2 - font.width(state), y + 3, armed ? GREEN : RED);
+		private void drawCornerFrame() {
+			int len = Math.min(36, this.w / 10);
+			int inset = 6;
+			// top-left
+			this.g.fill(inset, inset, inset + len, inset + 1, HudPalette.GREEN);
+			this.g.fill(inset, inset, inset + 1, inset + len, HudPalette.GREEN);
+			// top-right
+			this.g.fill(this.w - inset - len, inset, this.w - inset, inset + 1, HudPalette.GREEN);
+			this.g.fill(this.w - inset - 1, inset, this.w - inset, inset + len, HudPalette.GREEN);
+			// bottom-left
+			this.g.fill(inset, this.h - inset - 1, inset + len, this.h - inset, HudPalette.GREEN);
+			this.g.fill(inset, this.h - inset - len, inset + 1, this.h - inset, HudPalette.GREEN);
+			// bottom-right
+			this.g.fill(this.w - inset - len, this.h - inset - 1, this.w - inset, this.h - inset, HudPalette.GREEN);
+			this.g.fill(this.w - inset - 1, this.h - inset - len, this.w - inset, this.h - inset, HudPalette.GREEN);
 
-		int by = y + 16;
-		g.fill(x + 4, by, x + barW + 2, by + 2, armed ? GREEN : RED);
-		if (armed) {
-			int pulse = (int) ((System.currentTimeMillis() / 5L) % 8);
-			g.fill(x + 6 + pulse, by + 4, x + 12 + pulse, by + 6, GREEN_DIM);
-			g.fill(x + barW - 6 - pulse, by + 4, x + barW - pulse, by + 6, GREEN_DIM);
-		} else {
-			g.fill(x + 4, by + 4, x + barW + 2, by + 6, 0x66FF5148);
+			// tick ruler down both flanks
+			int midTop = this.h / 6;
+			int midBottom = this.h - this.h / 6;
+			for (int y = midTop; y < midBottom; y += 10) {
+				boolean major = (y - midTop) % 50 == 0;
+				int tick = major ? 8 : 4;
+				this.g.fill(inset, y, inset + tick, y + 1, major ? HudPalette.GREEN_DIM : HudPalette.GREEN_DARK);
+				this.g.fill(this.w - inset - tick, y, this.w - inset, y + 1,
+						major ? HudPalette.GREEN_DIM : HudPalette.GREEN_DARK);
+			}
 		}
-	}
 
-	private static void banner(GuiGraphics g, net.minecraft.client.gui.Font font, int cx, int y, String text,
-			int color) {
-		int width = font.width(text) + 22;
-		g.fill(cx - width / 2, y - 4, cx + width / 2, y + 12, 0xCC1A0505);
-		g.fill(cx - width / 2, y - 4, cx + width / 2, y - 3, color);
-		g.fill(cx - width / 2, y + 11, cx + width / 2, y + 12, color);
-		text(g, font, text, cx - width / 2 + 11, y, color);
-	}
+		// --- top strip ---------------------------------------------------
 
-	private static void panel(GuiGraphics g, int x, int y, int w, int h) {
-		g.fill(x, y, x + w, y + h, PANEL);
-		g.fill(x, y, x + w, y + 1, GREEN_DIM);
-		g.fill(x, y + h - 1, x + w, y + h, GREEN_DARK);
-	}
+		private void drawTopStrip() {
+			String callsign = "DRON-01 // " + this.player.getGameProfile().getName().toUpperCase();
+			int callW = this.font.width(callsign) + 30;
+			int x = this.cx - callW / 2;
+			int y = this.cy0;
 
-	private static void text(GuiGraphics g, net.minecraft.client.gui.Font font, String s, int x, int y, int color) {
-		g.drawString(font, s, x, y, color, false);
+			panel(x, y, callW, 26);
+			text(callsign, x + 10, y + 4, HudPalette.GREEN);
+
+			String mode = this.jamming ? "EW JAM" : "LINK OK";
+			int modeColour = this.jamming ? HudPalette.RED : HudPalette.GREEN_DIM;
+			text(mode, x + 10, y + 15, modeColour);
+
+			// Link lamp on the right side of the strip.
+			int lampColour = this.weakLink ? (this.blink ? HudPalette.RED : HudPalette.RED_DIM)
+					: (this.jamming ? HudPalette.AMBER : HudPalette.GREEN);
+			this.g.fill(x + callW - 18, y + 6, x + callW - 8, y + 16, lampColour);
+			this.g.fill(x + callW - 17, y + 7, x + callW - 9, y + 15, this.jamming ? 0x33FFC24A : 0x336CF7B4);
+
+			// Second strip: warhead state + flight timer.
+			String fuse = this.drone.isArmed() ? "\u26A0 БОЕВОЙ ВЗВОД" : "НЕ ВЗВЕДЁН";
+			int fuseW = this.font.width(fuse) + 16;
+			int fy = y + 28;
+			int fx = this.cx - fuseW / 2;
+			panel(fx, fy, fuseW, 16);
+			text(fuse, fx + 8, fy + 4, this.drone.isArmed() ? HudPalette.AMBER : HudPalette.TEXT_DIM);
+			if (this.drone.isArmed() && this.blink) {
+				this.g.fill(fx + 1, fy + 6, fx + 3, fy + 11, HudPalette.AMBER);
+			}
+		}
+
+		// --- compass -----------------------------------------------------
+
+		private void drawCompass() {
+			int tapeW = Math.min(220, this.w / 3);
+			int left = this.cx - tapeW / 2;
+			int y = this.cy0 + 48;
+
+			panel(left, y, tapeW, 24);
+			this.g.fill(left, y + 23, left + tapeW, y + 24, HudPalette.GREEN_DIM);
+
+			float heading = Mth.wrapDegrees(this.player.getYRot());
+			String[] labels = {"С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"};
+
+			for (int deg = 0; deg < 360; deg += 15) {
+				float diff = Mth.wrapDegrees(deg - heading);
+				if (Math.abs(diff) > 75.0F) {
+					continue;
+				}
+				int px = this.cx + (int) (diff / 75.0F * (tapeW / 2.0F) * 0.94F);
+				boolean major = deg % 45 == 0;
+				int height = major ? 7 : 3;
+				this.g.fill(px, y + 3, px + 1, y + 3 + height, major ? HudPalette.GREEN : HudPalette.GREEN_DARK);
+				if (major) {
+					String label = labels[deg / 45];
+					text(label, px - this.font.width(label) / 2, y + 11, HudPalette.TEXT);
+				}
+			}
+
+			// Heading bug.
+			this.g.fill(this.cx, y + 1, this.cx + 1, y + 22, HudPalette.AMBER);
+			this.g.fill(this.cx - 3, y + 22, this.cx + 4, y + 23, HudPalette.AMBER);
+
+			String degrees = String.format("%03d", Math.floorMod((int) Math.round(heading), 360));
+			panel(this.cx - 18, y + 26, 36, 13);
+			text(degrees, this.cx - this.font.width(degrees) / 2, y + 29, HudPalette.AMBER);
+		}
+
+		// --- horizon -----------------------------------------------------
+
+		private void drawHorizonLadder() {
+			float pitch = Mth.lerp(0.0F, this.drone.xRotO, this.drone.getXRot());
+			float roll = Mth.lerp(0.0F, this.drone.yRotO, this.drone.getYRot());
+
+			int pxPerDeg = Math.max(2, this.h / 120);
+			int centre = this.cy + (int) (pitch * pxPerDeg);
+			int colour = this.jamming ? HudPalette.AMBER : HudPalette.GREEN_DIM;
+			int wide = Math.min(90, this.w / 5);
+
+			// main line, split around the reticle
+			this.g.fill(this.cx - wide, centre, this.cx - 26, centre + 1, colour);
+			this.g.fill(this.cx + 26, centre, this.cx + wide, centre + 1, colour);
+			this.g.fill(this.cx - wide - 8, centre - 2, this.cx - wide + 8, centre + 3, colour);
+			this.g.fill(this.cx + wide - 8, centre - 2, this.cx + wide + 8, centre + 3, colour);
+
+			// pitch ladder rungs every 10 degrees
+			for (int step = -30; step <= 30; step += 10) {
+				if (step == 0) {
+					continue;
+				}
+				int y = centre - step * pxPerDeg;
+				if (y < this.cy0 + 60 || y > this.cy0 + this.h - 40) {
+					continue;
+				}
+				int half = step % 20 == 0 ? 34 : 20;
+				boolean below = step < 0;
+				int dash = below ? 3 : 2;
+				for (int i = 0; i < half; i += dash + 2) {
+					int from = this.cx - half + i;
+					this.g.fill(from, y, from + dash, y + 1, HudPalette.GREEN_DARK);
+					int mirror = this.cx + half - i;
+					this.g.fill(mirror - dash, y, mirror, y + 1, HudPalette.GREEN_DARK);
+				}
+			}
+
+			// Bank indicator arc.
+			int arcR = Math.min(64, this.h / 5);
+			for (int a = -60; a <= 60; a += 10) {
+				double rad = Math.toRadians(a - roll);
+				int x = this.cx + (int) (Math.sin(rad) * arcR);
+				int y = this.cy - (int) (Math.cos(rad) * arcR);
+				boolean major = Math.abs(a) == 60 || a == 0;
+				int len = major ? 4 : 2;
+				this.g.fill(x, y, x + len, y + 1, major ? HudPalette.GREEN : HudPalette.GREEN_DARK);
+			}
+		}
+
+		private void drawReticle() {
+			int c = this.weakLink && this.blink ? HudPalette.RED : HudPalette.GREEN;
+			int arm = 14;
+			int gap = 7;
+
+			// Four brackets.
+			this.g.fill(this.cx - arm, this.cy - arm + 6, this.cx - gap, this.cy - arm + 7, c);
+			this.g.fill(this.cx + gap, this.cy - arm + 6, this.cx + arm, this.cy - arm + 7, c);
+			this.g.fill(this.cx - arm, this.cy + arm - 7, this.cx - gap, this.cy + arm - 6, c);
+			this.g.fill(this.cx + gap, this.cy + arm - 7, this.cx + arm, this.cy + arm - 6, c);
+
+			this.g.fill(this.cx - arm, this.cy - arm + 6, this.cx - arm + 1, this.cy - gap, c);
+			this.g.fill(this.cx + arm - 1, this.cy - arm + 6, this.cx + arm, this.cy - gap, c);
+			this.g.fill(this.cx - arm, this.cy + gap, this.cx - arm + 1, this.cy + arm - 6, c);
+			this.g.fill(this.cx + arm - 1, this.cy + gap, this.cx + arm, this.cy + arm - 6, c);
+
+			// Centre dot + range ticks.
+			this.g.fill(this.cx - 1, this.cy - 1, this.cx + 1, this.cy + 1, c);
+			this.g.fill(this.cx - gap, this.cy, this.cx - 3, this.cy + 1, c);
+			this.g.fill(this.cx + 3, this.cy, this.cx + gap, this.cy + 1, c);
+
+			// Target diamond appears when something is under the crosshair.
+			if (this.client.crosshairPickEntity != null && this.client.crosshairPickEntity != this.drone) {
+				int d = 10;
+				int colour = this.blink ? HudPalette.RED : HudPalette.AMBER;
+				this.g.fill(this.cx - d, this.cy - d, this.cx - d + 4, this.cy - d + 1, colour);
+				this.g.fill(this.cx + d - 4, this.cy - d, this.cx + d, this.cy - d + 1, colour);
+				this.g.fill(this.cx - d, this.cy + d - 1, this.cx - d + 4, this.cy + d, colour);
+				this.g.fill(this.cx + d - 4, this.cy + d - 1, this.cx + d, this.cy + d, colour);
+			}
+		}
+
+		// --- instruments -------------------------------------------------
+
+		private void drawGauges() {
+			int left = this.cx0 + 16;
+			int right = this.cx0 + this.w - 16 - 104;
+			int top = this.cy - 46;
+
+			gauge(left, top, "СКОРОСТЬ", Math.round(this.speed * 3.6D) + " КМ/Ч",
+					(float) Math.min(1.0D, this.speed / (CombatDroneEntity.MAX_SPEED * 20.0D * 1.12D)),
+					HudPalette.GREEN, "\u25B6");
+
+			gauge(left, top + 34, "ВЫСОТА", this.altitude + " М",
+					Mth.clamp(this.altitude / 180.0F, 0.0F, 1.0F), HudPalette.GREEN, "\u25B2");
+
+			gauge(left, top + 68, "ДИСТ.", Math.round(this.range) + " М",
+					(float) Mth.clamp(this.range / CombatDroneEntity.MAX_RANGE, 0.0D, 1.0D),
+					this.range > CombatDroneEntity.MAX_RANGE * 0.72D ? HudPalette.AMBER : HudPalette.GREEN, "\u25C6");
+
+			gauge(right, top, "БАТАРЕЯ", Math.round(this.fuel * 100.0F) + "%", this.fuel,
+					this.lowFuel ? HudPalette.RED : HudPalette.GREEN, "\u26A1");
+
+			gauge(right, top + 34, "СИГНАЛ", DroneClientState.getSignal() + "%", this.link,
+					this.weakLink ? HudPalette.RED : (this.jamming ? HudPalette.AMBER : HudPalette.GREEN), "\u2248");
+
+			armedStrip(right, top + 68);
+		}
+
+		private void gauge(int x, int y, String label, String value, float ratio, int colour, String glyph) {
+			int barW = 104;
+			panel(x, y, barW, 30);
+
+			text(glyph + " " + label, x + 5, y + 4, HudPalette.TEXT_DIM);
+			text(value, x + barW - 5 - this.font.width(value), y + 4, HudPalette.TEXT);
+
+			int by = y + 17;
+			this.g.fill(x + 5, by, x + barW - 5, by + 8, 0xCC04110C);
+			this.g.fill(x + 5, by, x + barW - 5, by + 1, HudPalette.GREEN_DARK);
+
+			int filled = (int) (Mth.clamp(ratio, 0.0F, 1.0F) * (barW - 12));
+			for (int i = 0; i < filled; i += 6) {
+				int seg = Math.min(4, filled - i);
+				this.g.fill(x + 6 + i, by + 2, x + 6 + i + seg, by + 6, colour);
+			}
+			// needle
+			int needle = x + 6 + filled;
+			this.g.fill(needle, by + 1, needle + 1, by + 7, HudPalette.GREEN_BRIGHT);
+		}
+
+		private void armedStrip(int x, int y) {
+			int barW = 104;
+			panel(x, y, barW, 30);
+			text("\u2694 ВЗРЫВАТЕЛЬ", x + 5, y + 4, HudPalette.TEXT_DIM);
+
+			boolean armed = this.drone.isArmed() && !this.weakLink;
+			String state = armed ? "ВЗВЕДЁН" : "ОТКАЗ";
+			text(state, x + barW - 5 - this.font.width(state), y + 4, armed ? HudPalette.GREEN : HudPalette.RED);
+
+			int by = y + 17;
+			this.g.fill(x + 5, by, x + barW - 5, by + 2, armed ? HudPalette.GREEN : HudPalette.RED);
+			if (armed) {
+				int pulse = (int) ((System.currentTimeMillis() / 6L) % 40);
+				this.g.fill(x + 5 + pulse, by + 4, x + 9 + pulse, by + 7, HudPalette.GREEN_DIM);
+				this.g.fill(x + barW - 9 - pulse, by + 4, x + barW - 5 - pulse, by + 7, HudPalette.GREEN_DIM);
+			} else {
+				for (int i = 0; i < barW - 10; i += 8) {
+					this.g.fill(x + 5 + i, by + 4, x + 9 + i, by + 7, HudPalette.RED_DIM);
+				}
+			}
+		}
+
+		private void drawBoresightRail() {
+			int railW = 10;
+			int railH = Math.min(120, this.h / 4);
+			int x = this.cx - railW - 14;
+			int y = this.cy - railH / 2;
+			// Artificial horizon mirror on the left rail.
+			this.g.fill(x, y, x + railW, y + railH, HudPalette.PANEL);
+			float pitch = Mth.lerp(0.0F, this.drone.xRotO, this.drone.getXRot());
+			int marker = y + railH / 2 + (int) (pitch / 45.0F * (railH / 2.0F));
+			this.g.fill(x, marker, x + railW, marker + 2, HudPalette.AMBER);
+			this.g.fill(x, y + railH / 2, x + 4, y + railH / 2 + 1, HudPalette.GREEN_DIM);
+
+			// Altitude tape on the right of the rail.
+			for (int i = 0; i <= 4; i++) {
+				int ty = y + i * (railH / 4) - 1;
+				this.g.fill(x + railW + 2, ty, x + railW + 6, ty + 1, HudPalette.GREEN_DARK);
+			}
+		}
+
+		private void drawBottomHint() {
+			String hint = "ЛКМ — ПОДРЫВ    R — ОТЗЫВ    SHIFT — СНИЖЕНИЕ    ПРОБЕЛ — НАБОР";
+			int hintW = this.font.width(hint) + 24;
+			int y = this.cy0 + this.h - 34;
+			panel(this.cx - hintW / 2, y, hintW, 16);
+			text(hint, this.cx - hintW / 2 + 12, y + 4, HudPalette.TEXT_DIM);
+		}
+
+		private void drawWarnings() {
+			if (this.jamming && this.blink) {
+				banner("ПОМЕХИ  \u00B7  EW JAM", HudPalette.RED, this.cy - 74);
+			} else if (this.weakLink && this.blink) {
+				banner("ПОТЕРЯ СИГНАЛА", HudPalette.RED, this.cy - 74);
+			} else if (this.lowFuel && this.blink) {
+				banner("НИЗКИЙ ЗАРЯД", HudPalette.AMBER, this.cy - 74);
+			}
+
+			if (this.range > CombatDroneEntity.MAX_RANGE * 0.86D) {
+				String out = "ВЫХОД ЗА РАДИУС  " + Math.round(this.range) + " / " + (int) CombatDroneEntity.MAX_RANGE;
+				int w = this.font.width(out) + 20;
+				panel(this.cx - w / 2, this.cy + 60, w, 14);
+				text(out, this.cx - w / 2 + 10, this.cy + 63, HudPalette.AMBER);
+			}
+		}
+
+		private void drawRecordingLamp() {
+			long time = System.currentTimeMillis();
+			if ((time / 600L) % 2L == 0L) {
+				this.g.fill(this.w - 46, this.cy0 + 10, this.w - 38, this.cy0 + 18, HudPalette.RED);
+			}
+			text("REC", this.w - 34, this.cy0 + 10, 0xFFFF8E88);
+			text("FPV-01", this.w - 52, this.cy0 + 22, HudPalette.GREEN_DIM);
+			String clock = String.format("%02d:%02d", (this.drone.tickCount / 20) / 60, (this.drone.tickCount / 20) % 60);
+			text(clock, this.w - 52, this.cy0 + 33, HudPalette.TEXT_DIM);
+		}
+
+		// --- primitives --------------------------------------------------
+
+		private void panel(int x, int y, int w, int h) {
+			this.g.fillGradient(x, y, x + w, y + h, HudPalette.PANEL_DEEP, HudPalette.PANEL);
+			this.g.fill(x, y, x + w, y + 1, HudPalette.GREEN_DIM);
+			this.g.fill(x, y + h - 1, x + w, y + h, HudPalette.GREEN_DARK);
+			this.g.fill(x, y, x + 1, y + h, HudPalette.GREEN_DARK);
+			this.g.fill(x + w - 1, y, x + w, y + h, HudPalette.GREEN_DARK);
+		}
+
+		private void text(String value, int x, int y, int colour) {
+			this.g.drawString(this.font, value, x, y, colour, false);
+		}
+
+		private void banner(String value, int colour, int y) {
+			int width = this.font.width(value) + 26;
+			int x = this.cx - width / 2;
+			this.g.fill(x, y - 5, x + width, y + 13, 0xE61A0605);
+			this.g.fill(x, y - 5, x + width, y - 4, colour);
+			this.g.fill(x, y + 12, x + width, y + 13, colour);
+			// hazard chevrons
+			for (int i = 0; i < 8; i++) {
+				this.g.fill(x + 4 + i * 3, y - 2, x + 6 + i * 3, y - 1, colour & 0x66FFFFFF | (colour & 0xFF000000));
+			}
+			text(value, x + 13, y - 1, colour);
+		}
 	}
 }

@@ -4,6 +4,7 @@ import com.squezech.dron.network.DronNetwork;
 import com.squezech.dron.registry.ModEntities;
 import com.squezech.dron.registry.ModItems;
 import com.squezech.dron.registry.ModSounds;
+import com.squezech.dron.registry.ModTabs;
 
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.ResourceLocation;
@@ -26,7 +27,8 @@ public class DronMod implements ModInitializer {
 		ModSounds.init();
 		ModEntities.init();
 		ModItems.init();
+		ModTabs.init();
 		DronNetwork.initCommon();
-		LOGGER.info("Dron mod loaded: FPV kamikaze drone ready for takeoff");
+		LOGGER.info("Dron mod loaded: FPV strike drone ready for takeoff");
 	}
 }

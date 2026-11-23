@@ -7,23 +7,20 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.sounds.SoundEvent;
 
 /**
- * Registers the mod's custom sounds.
- *
- * <p>All sounds are 8-bit / 22.05 kHz mono OGG files (see assets/dron/sounds),
- * which every Minecraft 1.20.1 client can decode.
+ * Registers the mod's custom sounds (all plain Vorbis OGG, 22.05 kHz mono).
  */
 public final class ModSounds {
-	/** Looping buzzing of the quadcopter motors. */
+	/** Idle / flight buzzing of the four motors (looped client-side). */
 	public static final SoundEvent DRONE_LOOP = SoundEvent.createVariableRangeEvent(DronMod.id("drone_loop"));
-	/** One-shot buzz used as the idle cue. */
+	/** Short buzz burst used for the idle cue of a parked airframe. */
 	public static final SoundEvent DRONE_BUZZ = SoundEvent.createVariableRangeEvent(DronMod.id("drone_buzz"));
-	/** Warhead detonation. */
+	/** Warhead detonation (layered on top of the vanilla explosion). */
 	public static final SoundEvent DRONE_EXPLODE = SoundEvent.createVariableRangeEvent(DronMod.id("drone_explode"));
-	/** Launch whistle of the drone when tossed out of the controller. */
+	/** Launch whoosh when the airframe is tossed out of the controller. */
 	public static final SoundEvent DRONE_LAUNCH = SoundEvent.createVariableRangeEvent(DronMod.id("drone_launch"));
-	/** Pitched UI blips of the remote controller. */
+	/** Pitched UI blips of the controller. */
 	public static final SoundEvent DRONE_BEEP = SoundEvent.createVariableRangeEvent(DronMod.id("drone_beep"));
-	/** Radio static when the video link is unstable. */
+	/** Radio static of an unstable video link. */
 	public static final SoundEvent DRONE_STATIC = SoundEvent.createVariableRangeEvent(DronMod.id("drone_static"));
 
 	private ModSounds() {

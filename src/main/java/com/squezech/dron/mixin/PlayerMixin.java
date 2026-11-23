@@ -9,8 +9,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Sneak is the "descend" control of the drone, so it must not dismount the
- * pilot (vanilla drops players off vehicles when shift is held).
+ * The drone is flown with the player's look controls (like a camera), so while
+ * the operator sits at the controls:
+ *
+ * <ul>
+ *   <li>Shift is the "descend" key instead of the dismount key;</li>
+ *   <li>the pilot's footsteps stay silent — the player is not walking.</li>
+ * </ul>
  */
 @Mixin(Player.class)
 public abstract class PlayerMixin {
@@ -19,6 +24,14 @@ public abstract class PlayerMixin {
 		Player self = (Player) (Object) this;
 		if (self.getVehicle() instanceof CombatDroneEntity) {
 			cir.setReturnValue(false);
+		}
+	}
+
+	@Inject(method = "getFrictionInfluencedSpeed", at = @At("HEAD"), cancellable = true)
+	private void dron$silentFootsteps(float friction, CallbackInfoReturnable<Float> cir) {
+		Player self = (Player) (Object) this;
+		if (self.getVehicle() instanceof CombatDroneEntity) {
+			cir.setReturnValue(0.0F);
 		}
 	}
 }

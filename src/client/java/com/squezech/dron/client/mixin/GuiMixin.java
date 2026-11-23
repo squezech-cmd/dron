@@ -11,8 +11,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Swaps the vanilla HUD chrome (hotbar, hearts, crosshair, XP bar) for the
- * military FPV HUD while the player is piloting a drone.
+ * Swaps the vanilla chrome (hotbar, hearts, crosshair) for the military FPV HUD
+ * while the player is at the drone's controls.
  */
 @Mixin(Gui.class)
 public abstract class GuiMixin {

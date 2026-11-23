@@ -21,10 +21,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build current sources
+      - name: Prime gradle caches (compile client classpath only)
         run: |
           chmod +x ./gradlew
-          ./gradlew build --no-daemon -q > /tmp/build.txt 2>&1 || tail -40 /tmp/build.txt
+          ./gradlew classes --no-daemon -q > /tmp/build.txt 2>&1 || tail -60 /tmp/build.txt
 
       - name: Inspect
         run: bash .github/probe.sh > /tmp/probe.txt 2>&1 || true

@@ -3,7 +3,7 @@
 		"category": "neutral",
 		"subtitle": "subtitles.dron.drone_loop",
 		"sounds": [
-			{ "name": "dron:drone_loop", "stream": false }
+			{ "name": "dron:drone_loop", "stream": false, "attenuation_distance": 48 }
 		]
 	},
 	"drone_buzz": {
@@ -29,6 +29,6 @@
 	"drone_static": {
 		"category": "neutral",
 		"subtitle": "subtitles.dron.drone_static",
-		"sounds": [ "dron:drone_static" ]
+		"sounds": [ { "name": "dron:drone_static", "stream": false } ]
 	}
 }

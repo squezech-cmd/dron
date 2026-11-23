@@ -12,11 +12,17 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 public final class ModEntities {
+	/**
+	 * The drone is tiny (0.5 x 0.45 blocks) and ticks every second game tick so
+	 * its position stays smooth at 30 blocks/s.
+	 */
 	public static final EntityType<CombatDroneEntity> COMBAT_DRONE = register("combat_drone",
 			EntityType.Builder.<CombatDroneEntity>of(CombatDroneEntity::new, MobCategory.MISC)
-					.sized(0.6F, 0.6F)
-					.clientTrackingRange(10)
-					.updateInterval(2)
+					.sized(CombatDroneEntity.WIDTH, CombatDroneEntity.HEIGHT)
+					.clientTrackingRange(12)
+					.updateInterval(1)
+					.fireImmune()
+					.noSummon()
 					.build("combat_drone"));
 
 	private ModEntities() {
@@ -29,7 +35,7 @@ public final class ModEntities {
 	}
 
 	public static void init() {
-		// The drone is a plain Entity, so no living attributes are required.
+		// Registration happens in the static initialiser above.
 		if (COMBAT_DRONE == null) {
 			throw new IllegalStateException("combat_drone was not registered");
 		}
