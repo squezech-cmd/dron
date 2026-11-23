@@ -64,3 +64,73 @@ jobs:
         with:
           name: server-log
           path: /tmp/server.log
+
+  client:
+    name: Headless client boots into a world
+    # Runs when the commit message asks for it (a full client boot is heavy).
+    if: contains(github.event.head_commit.message, '[client]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Install virtual display and GL libraries
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            xvfb libgl1-mesa-dri mesa-utils libglu1-mesa \
+            libxi6 libxcursor1 libxrandr2 libxinerama1 libxxf86vm1 \
+            libopenal1 libpulse0
+
+      - name: Prepare options
+        run: |
+          chmod +x ./gradlew
+          mkdir -p run/config
+          printf '%s\n' 'eula=true' > run/eula.txt
+          printf '%s\n' \
+            'autoJump:false' \
+            'narrator:0' \
+            'soundCategory_master:0.0' \
+            'pauseOnLostFocus:false' \
+            'renderDistance:4' \
+            'maxFps:30' \
+            'graphicsMode:0' > run/options.txt
+
+      - name: Boot client (headless X)
+        timeout-minutes: 15
+        run: |
+          set +e
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export MESA_GL_VERSION_OVERRIDE=3.3
+          export ALSOFT_DRIVERS=null
+          ( sleep 200; echo "stop" ) | \
+          timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" \
+            ./gradlew runClient --no-daemon --console=plain > /tmp/client.log 2>&1
+          echo "gradle exit=$?"
+
+      - name: Assert the client loaded the mod
+        run: |
+          set -euo pipefail
+          grep -E "Dron client initialised|OpenAL initialized|Setting user|Backend library" /tmp/client.log || true
+          if grep -qE "Mixin apply for mod dron failed|Crash report|Exception in thread \"main\"" /tmp/client.log; then
+            echo "::error::the client crashed while loading the mod"
+            grep -nE "Mixin apply|Caused by|Exception|at com.squezech" /tmp/client.log | head -n 60
+            exit 1
+          fi
+          if ! grep -q "Dron client initialised" /tmp/client.log; then
+            echo "::error::the client never initialised the dron mod"
+            tail -n 100 /tmp/client.log
+            exit 1
+          fi
+          echo "client initialised the mod cleanly"
+
+      - name: Upload client log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-log
+          path: /tmp/client.log
