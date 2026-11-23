@@ -33,9 +33,11 @@ public abstract class CameraMixin {
 			return;
 		}
 
-		double x = drone.xo + (drone.getX() - drone.xo) * partialTick;
-		double y = drone.yo + (drone.getY() - drone.yo) * partialTick;
-		double z = drone.zo + (drone.getZ() - drone.zo) * partialTick;
+		// Riding players tick their vehicle before the camera, so the live
+		// position is the predicted one: no interpolation lag in the feed.
+		double x = drone.getX();
+		double y = drone.getY();
+		double z = drone.getZ();
 
 		float shake = DroneClientState.getImpactShake() * 0.05F;
 		float hum = DroneClientState.getVibration() * 0.004F;

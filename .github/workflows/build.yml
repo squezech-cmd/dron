@@ -1,21 +1,30 @@
-name: Build Mod
+name: Build
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
 
 jobs:
   build:
+    name: Build mod jar
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle.properties', 'build.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -23,75 +32,31 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build mod jar
+      - name: Build
         run: |
-          set -o pipefail
-          for attempt in 1 2 3; do
-            echo "=== build attempt $attempt ==="
-            if ./gradlew build --stacktrace --no-daemon 2>&1 | tee /tmp/build.log; then
-              exit 0
-            fi
-            # retry only on transient repository throttling
-            if grep -q "status code 429\|Too Many Requests\|Connection reset" /tmp/build.log; then
-              echo "Transient repository error, retrying in 30s..."
-              sleep 30
-            else
-              exit 1
-            fi
-          done
-          exit 1
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon --console=plain
 
-      - name: Upload mod jar as workflow artifact
-        if: success()
+      - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: dron-mod
-          path: build/libs/dron-*.jar
+          path: |
+            build/libs/dron-*.jar
+            !build/libs/*sources*.jar
           if-no-files-found: error
 
-      - name: Publish jar to GitHub Release
-        if: success() && github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
+      - name: Attach jar to release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          SHORT="${SHA:0:7}"
           JAR="$(ls build/libs/dron-*.jar | grep -v sources | head -n1)"
-          echo "Publishing $JAR"
-          gh release create "build-${SHORT}" "$JAR" \
-            --repo "$REPO" \
-            --target "$SHA" \
-            --title "Dron 1.20.1 — build ${SHORT}" \
-            --notes "Автосборка мода **Dron** (боевой FPV-дрон, Minecraft 1.20.1, Fabric).
+          gh release create "${GITHUB_REF_NAME}" "$JAR" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Dron ${GITHUB_REF_NAME#v}" \
+            --notes "Боевой FPV-дрон для Minecraft 1.20.1 (Fabric).
 
-          **Файлы:** $(basename "$JAR")
-          **Коммит:** $SHA
-
-          Установка: Fabric Loader 1.20.1 + Fabric API, положить jar в папку \`mods\`." \
-            || true
-
-      - name: Report build failure as issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          {
-            echo "Build failed for commit \`${SHA}\`."
-            echo ""
-            echo "Run: ${RUN_URL}"
-            echo ""
-            echo '```'
-            head -n 260 /tmp/build.log || true
-            echo '```'
-          } > /tmp/issue.md
-          TITLE="Build failed: $(date -u +%Y-%m-%dT%H:%MZ) ${SHA:0:7}"
-          gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/issue.md
+          Установка: Fabric Loader для 1.20.1 + Fabric API, положить \`$(basename "$JAR")\` в папку \`mods\`." \
+            || gh release upload "${GITHUB_REF_NAME}" "$JAR" --repo "$GITHUB_REPOSITORY" --clobber

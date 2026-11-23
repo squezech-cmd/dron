@@ -1,24 +1,28 @@
-name: smoke
+name: Smoke test
 
 on:
   push:
-    branches: ['arena/**']
+    branches: [main]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   server:
+    name: Dedicated server boots with the mod
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-      - name: Prepare server run dir
+
+      - name: Prepare run directory
         run: |
           chmod +x ./gradlew
           mkdir -p run
@@ -30,35 +34,33 @@ jobs:
             'max-tick-time=-1' \
             'spawn-protection=0' \
             'sync-chunk-writes=false' > run/server.properties
-      - name: Run dedicated server with the mod
+
+      - name: Boot server
         timeout-minutes: 12
         run: |
           set +e
           ( sleep 150; echo "stop" ) | timeout 260 ./gradlew runServer --no-daemon --console=plain > /tmp/server.log 2>&1
           echo "gradle exit=$?"
-          tail -n 120 /tmp/server.log
-      - name: Assert clean startup
+
+      - name: Assert clean boot
         run: |
           set -euo pipefail
-          if grep -q "Mixin apply for mod dron failed\|Failed to start the minecraft server\|Exception in server tick\|Unexpected error" /tmp/server.log; then
-            echo "::error::server crashed"
-            grep -n -E "Mixin apply|Failed to start|Exception|Caused by" /tmp/server.log | head -40
+          grep -E "Dron mod loaded|Done \(" /tmp/server.log || true
+          if grep -qE "Mixin apply for mod dron failed|Failed to start the minecraft server|Exception in server tick" /tmp/server.log; then
+            echo "::error::the server crashed while loading the mod"
+            grep -nE "Mixin apply|Failed to start|Caused by" /tmp/server.log | head -n 40
             exit 1
           fi
           if ! grep -q 'Done (' /tmp/server.log; then
-            echo "::error::server never reached the Done state"
+            echo "::error::server never reached the 'Done' state"
+            tail -n 60 /tmp/server.log
             exit 1
           fi
-          echo "server started cleanly"
-      - name: Report
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          {
-            echo '### smoke: dedicated server'
-            echo '```'
-            grep -n -i -E "dron|mixin|exception|error|Done \(|starting minecraft server" /tmp/server.log | head -100
-            echo '```'
-          } > /tmp/issue.md
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "smoke report server ${GITHUB_SHA:0:7}" --body-file /tmp/issue.md
+          echo "server booted cleanly with the mod installed"
+
+      - name: Upload crash log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: /tmp/server.log

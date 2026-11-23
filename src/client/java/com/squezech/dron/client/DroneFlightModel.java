@@ -57,6 +57,9 @@ public final class DroneFlightModel {
 		drone.setDeltaMovement(velocity);
 		Vec3 next = drone.position().add(velocity);
 		drone.setPos(next.x, next.y, next.z);
+		// Collapse the interpolation window: this client is the authority for the
+		// airframe it is flying, the server only lands the final impact point.
+		drone.setOldPosAndRot();
 		drone.setYRot(yaw);
 		drone.setXRot(Mth.clamp(player.getXRot() * 0.55F, -42.0F, 42.0F));
 

@@ -61,6 +61,13 @@ public class CombatDroneEntity extends Entity {
 	/** Hard ceiling of the airframe, blocks per tick (36 blocks/s = 130 km/h). */
 	public static final double MAX_SPEED = 1.8D;
 
+	/**
+	 * Server position updates are interpolated over five ticks on the clients
+	 * (vanilla uses three): at 36 blocks/s the airframe would otherwise visibly
+	 * stutter, and the pilot's local prediction would be reset every packet.
+	 */
+	public static final int LERP_STEPS = 5;
+
 	// Tuning shared with the client-side flight model.
 	public static final double THRUST = 0.085D;
 	public static final double STRAFE = 0.065D;
@@ -645,6 +652,12 @@ public class CombatDroneEntity extends Entity {
 	@Override
 	public boolean shouldRenderAtSqrDistance(double distance) {
 		return distance < 192.0D * 192.0D;
+	}
+
+	/** Slow the vanilla position interpolation down to the airframe's tempo. */
+	@Override
+	public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps, boolean teleport) {
+		super.lerpTo(x, y, z, yRot, xRot, LERP_STEPS, teleport);
 	}
 
 	/**
