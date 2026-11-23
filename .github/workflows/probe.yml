@@ -21,19 +21,10 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Download latest mod artifact
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
+      - name: Build current sources
         run: |
-          set -x
-          mkdir -p /tmp/art
-          ID=$(gh api "repos/$REPO/actions/artifacts?per_page=100" \
-            --jq '[.artifacts[] | select(.name=="dron-mod" and .expired==false)] | sort_by(.created_at) | last | .id')
-          echo "artifact=$ID"
-          gh api "repos/$REPO/actions/artifacts/$ID/zip" > /tmp/art/a.zip
-          unzip -o /tmp/art/a.zip -d /tmp/art/x
-          ls -la /tmp/art/x
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon -q > /tmp/build.txt 2>&1 || tail -40 /tmp/build.txt
 
       - name: Inspect
         run: bash .github/probe.sh > /tmp/probe.txt 2>&1 || true
@@ -46,7 +37,7 @@ jobs:
           set -euo pipefail
           {
             echo '```'
-            head -c 55000 /tmp/probe.txt || true
+            head -c 60000 /tmp/probe.txt || true
             echo '```'
           } > /tmp/issue.md
           gh issue create --repo "$REPO" --title "probe report ${GITHUB_SHA:0:7}" --body-file /tmp/issue.md
