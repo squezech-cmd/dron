@@ -1,0 +1,52 @@
+name: probe
+
+on:
+  push:
+    branches: ['arena/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Download latest mod artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -x
+          mkdir -p /tmp/art
+          ID=$(gh api "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.name=="dron-mod" and .expired==false)] | sort_by(.created_at) | last | .id')
+          echo "artifact=$ID"
+          gh api "repos/$REPO/actions/artifacts/$ID/zip" > /tmp/art/a.zip
+          unzip -o /tmp/art/a.zip -d /tmp/art/x
+          ls -la /tmp/art/x
+
+      - name: Inspect
+        run: bash .github/probe.sh > /tmp/probe.txt 2>&1 || true
+
+      - name: Publish report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          {
+            echo '```'
+            head -c 55000 /tmp/probe.txt || true
+            echo '```'
+          } > /tmp/issue.md
+          gh issue create --repo "$REPO" --title "probe report ${GITHUB_SHA:0:7}" --body-file /tmp/issue.md
