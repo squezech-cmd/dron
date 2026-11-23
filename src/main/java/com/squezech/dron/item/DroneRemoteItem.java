@@ -12,7 +12,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -29,9 +28,6 @@ import org.jetbrains.annotations.Nullable;
  * recalls the drone.
  */
 public class DroneRemoteItem extends Item {
-	/** Minimal service ceiling of the airframe, in blocks above the launch point. */
-	private static final double MAX_ALTITUDE = 180.0D;
-
 	public DroneRemoteItem(Properties properties) {
 		super(properties);
 	}
@@ -100,11 +96,6 @@ public class DroneRemoteItem extends Item {
 			return null;
 		}
 		return spot;
-	}
-
-	/** Soft safety rail: the operator cannot climb past the service ceiling. */
-	public static double clampAltitude(Entity drone) {
-		return drone.getY();
 	}
 
 	@Override
