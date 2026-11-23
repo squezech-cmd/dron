@@ -23,14 +23,13 @@ jobs:
           chmod +x ./gradlew
           mkdir -p run
           echo "eula=true" > run/eula.txt
-          cat > run/server.properties <<'PROPS'
-online-mode=false
-level-type=minecraft\:flat
-level-name=world
-max-tick-time=-1
-spawn-protection=0
-sync-chunk-writes=false
-PROPS
+          printf '%s\n' \
+            'online-mode=false' \
+            'level-type=minecraft\:flat' \
+            'level-name=world' \
+            'max-tick-time=-1' \
+            'spawn-protection=0' \
+            'sync-chunk-writes=false' > run/server.properties
       - name: Run dedicated server with the mod
         timeout-minutes: 12
         run: |
