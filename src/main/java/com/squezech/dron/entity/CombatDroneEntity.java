@@ -216,7 +216,7 @@ public class CombatDroneEntity extends Entity {
 		}
 		if (this.getPilot() == null && this.isOperator(player)) {
 			player.startRiding(this, true);
-			this.playSound(ModSounds.DRONE_BEEP, 0.7F, 1.4F);
+			this.playLocalSound(ModSounds.DRONE_BEEP, 0.7F, 1.4F);
 			return InteractionResult.CONSUME;
 		}
 		return InteractionResult.PASS;
@@ -338,10 +338,6 @@ public class CombatDroneEntity extends Entity {
 		this.setPos(next.x, next.y, next.z);
 		this.updateSpin(speed);
 
-		// --- visual / audio FPV cues ---------------------------------------
-		if (pilot instanceof ServerPlayer serverPlayer) {
-			this.sendCues(serverPlayer, velocity);
-		}
 	}
 
 	private void updateSpin(double speed) {
@@ -575,12 +571,9 @@ public class CombatDroneEntity extends Entity {
 	// --------------------------------------------------------------- behaviour
 
 	@Override
-	public void positionRider(Entity passenger) {
-		if (!this.hasPassenger(passenger)) {
-			return;
-		}
+	protected void positionRider(Entity passenger, Entity.MoveFunction moveFunction) {
 		double y = this.getY() + this.getBbHeight() * 0.62D;
-		passenger.setPos(this.getX(), y, this.getZ());
+		moveFunction.accept(passenger, this.getX(), y, this.getZ());
 	}
 
 	@Override
@@ -639,8 +632,8 @@ public class CombatDroneEntity extends Entity {
 			return false;
 		}
 		boolean hostile = source.getEntity() instanceof Player
-				|| source.isExplosion()
-				|| source.getEntity() instanceof Projectile;
+				|| source.getEntity() instanceof Projectile
+				|| isExplosionDamage(source);
 		if (hostile) {
 			this.detonate(this.getPilot());
 			return true;
@@ -651,7 +644,11 @@ public class CombatDroneEntity extends Entity {
 	/** Collision damage from the vanilla side must never apply to the airframe. */
 	@Override
 	public boolean isInvulnerableTo(DamageSource source) {
-		return source.isFire() || source.isExplosion() || super.isInvulnerableTo(source);
+		return source.isFire() || isExplosionDamage(source) || super.isInvulnerableTo(source);
+	}
+
+	private static boolean isExplosionDamage(DamageSource source) {
+		return source.typeHolder().is(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION);
 	}
 
 	@Override
@@ -684,7 +681,7 @@ public class CombatDroneEntity extends Entity {
 		}
 	}
 
-	private void playSound(SoundEvent event, float volume, float pitch) {
+	private void playLocalSound(SoundEvent event, float volume, float pitch) {
 		this.level().playSound(null, this.getX(), this.getY(), this.getZ(), event, SoundSource.NEUTRAL,
 				volume, pitch);
 	}

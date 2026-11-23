@@ -18,7 +18,7 @@ public final class ModEntities {
 	 */
 	public static final EntityType<CombatDroneEntity> COMBAT_DRONE = register("combat_drone",
 			EntityType.Builder.<CombatDroneEntity>of(CombatDroneEntity::new, MobCategory.MISC)
-					.sized(CombatDroneEntity.WIDTH, CombatDroneEntity.HEIGHT)
+					.sized((float) CombatDroneEntity.WIDTH, (float) CombatDroneEntity.HEIGHT)
 					.clientTrackingRange(12)
 					.updateInterval(1)
 					.fireImmune()
