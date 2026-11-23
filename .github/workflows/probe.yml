@@ -29,6 +29,11 @@ jobs:
       - name: Inspect
         run: bash .github/probe.sh > /tmp/probe.txt 2>&1 || true
 
+      - name: Trim report
+        run: |
+          wc -c /tmp/probe.txt
+          head -c 90000 /tmp/probe.txt > /tmp/probe2.txt && mv /tmp/probe2.txt /tmp/probe.txt
+
       - name: Publish report
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -37,7 +42,7 @@ jobs:
           set -euo pipefail
           {
             echo '```'
-            head -c 60000 /tmp/probe.txt || true
+            head -c 62000 /tmp/probe.txt || true
             echo '```'
           } > /tmp/issue.md
           gh issue create --repo "$REPO" --title "probe report ${GITHUB_SHA:0:7}" --body-file /tmp/issue.md
