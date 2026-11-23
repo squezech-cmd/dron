@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "dron",
+	"version": "${version}",
+	"name": "Dron — боевой FPV-дрон",
+	"description": "Быстрый военный FPV-дрон-камикадзе: пульт управления, жужжание моторов, военный HUD в очках и детонация при столкновении. Есть РЭБ-зоны (маяки) и модуль форсажа.",
+	"authors": [
+		"squezech"
+	],
+	"contact": {
+		"homepage": "https://github.com/squezech-cmd/dron",
+		"sources": "https://github.com/squezech-cmd/dron",
+		"issues": "https://github.com/squezech-cmd/dron/issues"
+	},
+	"license": "MIT",
+	"icon": "assets/dron/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.squezech.dron.DronMod"
+		],
+		"client": [
+			"com.squezech.dron.client.DronModClient"
+		]
+	},
+	"mixins": [
+		{
+			"config": "dron.mixins.json"
+		},
+		{
+			"config": "dron.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.15.0",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	}
+}

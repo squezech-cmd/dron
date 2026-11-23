@@ -1,0 +1,21 @@
+{
+	"item.dron.drone_remote": "Combat Drone Controller",
+	"item.dron.drone_remote.desc": "Launches and flies an FPV kamikaze drone. RMB — take off.",
+	"item.dron.drone_remote.controls": "W/S — thrust, A/D — strafe, Space/Shift — altitude, mouse — aim",
+	"item.dron.drone_remote.reload": "LMB — detonate the warhead, R — safe recall",
+	"itemGroup.dron.dron": "Combat Drone",
+	"key.categories.dron": "Combat Drone",
+	"key.dron.recall": "Recall drone",
+	"entity.dron.combat_drone": "Combat FPV Drone",
+	"dron.message.impact": "Drone detonated",
+	"dron.message.recall": "Drone recalled to base",
+	"dron.message.battery": "Battery empty — self-destruct",
+	"dron.message.jam": "Link lost — self-destruct",
+	"dron.message.nofly": "Not enough room to launch",
+	"subtitles.dron.drone_loop": "Drone buzzes",
+	"subtitles.dron.drone_buzz": "Drone motors buzz",
+	"subtitles.dron.drone_explode": "Drone warhead detonates",
+	"subtitles.dron.drone_launch": "Drone takes off",
+	"subtitles.dron.drone_beep": "Controller beeps",
+	"subtitles.dron.drone_static": "Video link static"
+}
