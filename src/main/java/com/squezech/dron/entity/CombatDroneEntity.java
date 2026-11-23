@@ -644,7 +644,8 @@ public class CombatDroneEntity extends Entity {
 	/** Collision damage from the vanilla side must never apply to the airframe. */
 	@Override
 	public boolean isInvulnerableTo(DamageSource source) {
-		return source.isFire() || isExplosionDamage(source) || super.isInvulnerableTo(source);
+		return source.typeHolder().is(net.minecraft.tags.DamageTypeTags.IS_FIRE)
+				|| isExplosionDamage(source) || super.isInvulnerableTo(source);
 	}
 
 	private static boolean isExplosionDamage(DamageSource source) {
